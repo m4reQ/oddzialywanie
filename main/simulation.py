@@ -34,6 +34,10 @@ class SimulationObject(abc.ABC):
     def draw(self, axes: axes.Axes) -> None:
         pass
 
+    @abc.abstractmethod
+    def place(self, permittivity_array: np.ndarray, permeability_array: np.ndarray) -> None:
+        pass
+
     @property
     def pos_x_int(self) -> int:
         return int(self.pos_x)
@@ -49,6 +53,10 @@ class Box(SimulationObject):
 
     def draw(self, axes: axes.Axes) -> None:
         axes.add_patch(patches.Rectangle((self.pos_x, self.pos_y), self.width, self.height, fill=False, edgecolor='black'))
+
+    def place(self, permittivity_array: np.ndarray, permeability_array: np.ndarray) -> None:
+        permittivity_array[self.pos_x_int:self.pos_x_int + int(self.width), self.pos_y_int:self.pos_y_int + int(self.height)] = self.permittivity
+        permeability_array[self.pos_x_int:self.pos_x_int + int(self.width), self.pos_y_int:self.pos_y_int + int(self.height)] = self.permeability
 
     @property
     def width_int(self) -> int:
@@ -193,7 +201,7 @@ class Simulation(QtCore.QObject):
             self._pml_profile = self._generate_pml_profile()
             self._emit_pml_params_changed()
 
-    def reset(self, ) -> None:
+    def reset(self) -> None:
         self._current_frame = 0
 
         grid_size = (self._grid_size_x, self._grid_size_y)
@@ -203,7 +211,7 @@ class Simulation(QtCore.QObject):
         self._ae = np.ones(grid_size) * self._dt / (self._dx * EPS_0)
         self._am = np.ones(grid_size) * self._dt / (self._dx * MU_0)
 
-    def simulate_frame(self, sources: t.Iterable[Source]) -> None:
+    def simulate_frame(self, sources: t.Iterable[Source], objects: t.Iterable[SimulationObject]) -> None:
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -215,6 +223,9 @@ class Simulation(QtCore.QObject):
 
         for source in sources:
             self._ez[source.pos_x_int, source.pos_y_int] = source.data[self._current_frame]
+
+        for obj in objects:
+            obj.place(self._ae, self._am)
 
         self._current_frame += 1
 

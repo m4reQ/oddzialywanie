@@ -10,16 +10,18 @@ from main import mpl_canvas, simulation
 
 MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
 SOURCE_INSPECTOR_UI_FILEPATH = './ui/source_inspector.ui'
+OBJECT_INSPECTOR_UI_FILEPATH = './ui/object_inspector.ui'
 DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
 
 class SimulationJob(QtCore.QThread):
     frame_ready = QtCore.pyqtSignal()
 
-    def __init__(self, simulation: simulation.Simulation, sources: t.Iterable[simulation.Source]) -> None:
+    def __init__(self, simulation: simulation.Simulation, sources: t.Iterable[simulation.Source], objects: t.Iterable[simulation.SimulationObject]) -> None:
         super().__init__()
 
         self.simulation = simulation
         self.sources = sources
+        self.objects = objects
         self.is_running = True
         self.previous_frame_processed = True
 
@@ -34,16 +36,96 @@ class SimulationJob(QtCore.QThread):
             if not self.previous_frame_processed:
                 continue
 
-            self.simulation.simulate_frame(self.sources)
+            self.simulation.simulate_frame(self.sources, self.objects)
             self.frame_ready.emit()
 
             self.previous_frame_processed = False
 
 class ObjectInspector(QtWidgets.QWidget):
+    object_params_changed = QtCore.pyqtSignal()
+
     def __init__(self) -> None:
         super().__init__()
 
         self._object: simulation.SimulationObject | None = None
+
+        self.width_input: QtWidgets.QDoubleSpinBox
+        self.height_input: QtWidgets.QDoubleSpinBox
+        self.object_name_label: QtWidgets.QLabel
+        self.permeability_input: QtWidgets.QDoubleSpinBox
+        self.permittivity_input: QtWidgets.QDoubleSpinBox
+        self.x_input: QtWidgets.QDoubleSpinBox
+        self.y_input: QtWidgets.QDoubleSpinBox
+
+        uic.load_ui.loadUi(OBJECT_INSPECTOR_UI_FILEPATH, self)
+
+        self.width_input.valueChanged.connect(self._width_changed_cb)
+        self.height_input.valueChanged.connect(self._height_changed_cb)
+        self.x_input.valueChanged.connect(self._x_input_changed_cb)
+        self.y_input.valueChanged.connect(self._y_input_changed_cb)
+
+    @QtCore.pyqtSlot()
+    def _x_input_changed_cb(self) -> None:
+        assert isinstance(self._object, simulation.Box)
+
+        self._object.pos_x = self.x_input.value()
+        self.object_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _y_input_changed_cb(self) -> None:
+        assert isinstance(self._object, simulation.Box)
+
+        self._object.pos_y = self.y_input.value()
+        self.object_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _width_changed_cb(self) -> None:
+        if self._object is not None:
+            assert isinstance(self._object, simulation.Box)
+
+            self._object.width = self.width_input.value()
+            self.object_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _height_changed_cb(self) -> None:
+        if self._object is not None:
+            assert isinstance(self._object, simulation.Box)
+
+            self._object.height = self.height_input.value()
+            self.object_params_changed.emit()
+
+    def set_simulation_size(self, x: float, y: float) -> None:
+        current_width = 0.0
+        current_height = 0.0
+        current_x = 0.0
+        current_y = 0.0
+        if self._object is not None:
+            assert isinstance(self._object, simulation.Box)
+
+            current_width = self._object.width
+            current_height = self._object.height
+            current_x = self._object.pos_x
+            current_y = self._object.pos_y
+
+        self.x_input.setMaximum(x - current_width)
+        self.y_input.setMaximum(y - current_height)
+        self.width_input.setMaximum(x - current_x)
+        self.height_input.setMaximum(y - current_y)
+
+    def set_object(self, object: simulation.SimulationObject | None) -> None:
+        self._object = object
+
+        if object is None:
+            return
+
+        assert isinstance(object, simulation.Box)
+        self.object_name_label.setText('Object')
+        self.width_input.setValue(object.width)
+        self.height_input.setValue(object.height)
+        self.permeability_input.setValue(object.permeability)
+        self.permittivity_input.setValue(object.permittivity)
+        self.x_input.setValue(object.pos_x)
+        self.y_input.setValue(object.pos_y)
 
 class SourceInspector(QtWidgets.QWidget):
     source_params_changed = QtCore.pyqtSignal()
@@ -95,7 +177,7 @@ class SourceInspector(QtWidgets.QWidget):
             self._source.pos_y = self.source_y_input.value()
             self.source_params_changed.emit()
 
-    def set_source_item(self, source: simulation.Source | None) -> None:
+    def set_source(self, source: simulation.Source | None) -> None:
         self._source = source
 
         if source is None:
@@ -146,6 +228,7 @@ class UI(QtWidgets.QMainWindow):
         self.show_pml_input: QtWidgets.QCheckBox
         self.inspectors_tab: QtWidgets.QTabWidget
         self.source_inspector_widget = SourceInspector()
+        self.object_inspector_widget = ObjectInspector()
 
         self.status_bar_frame_index = QtWidgets.QLabel('Current frame: 0')
         self.status_bar.addWidget(self.status_bar_frame_index)
@@ -166,6 +249,10 @@ class UI(QtWidgets.QMainWindow):
             1e-8,
             25,
             3)
+
+        self.object_inspector_widget.set_simulation_size(self.simulation._grid_size_x, self.simulation._grid_size_y)
+        self.source_inspector_widget.set_max_source_pos(self.simulation._grid_size_x, self.simulation._grid_size_y)
+
         self.simulation.deltas_changed.connect(self._sim_deltas_changed_cb)
         self.simulation.grid_size_changed.connect(self._sim_grid_size_changed_cb)
         self.simulation.pml_params_changed.connect(self._sim_pml_params_changed)
@@ -188,11 +275,18 @@ class UI(QtWidgets.QMainWindow):
         self.show_sources_input.checkStateChanged.connect(self._show_checkbox_changed_cb)
         self.show_pml_input.checkStateChanged.connect(self._show_pml_input_cb)
         self.sources_list.itemSelectionChanged.connect(self._sources_list_selection_changed_cb)
+        self.objects_list.itemSelectionChanged.connect(self._objects_list_selection_changed_cb)
         self.source_inspector_widget.source_params_changed.connect(self._source_params_changed_cb)
+        self.object_inspector_widget.object_params_changed.connect(self._object_params_changed_cb)
+
+    @QtCore.pyqtSlot()
+    def _object_params_changed_cb(self) -> None:
+        if not self.show_pml_input.isChecked() and self.show_objects_input.isChecked():
+            self._redraw_simulation_canvas()
 
     @QtCore.pyqtSlot()
     def _source_params_changed_cb(self) -> None:
-        if not self.show_pml_input.isChecked():
+        if not self.show_pml_input.isChecked() and self.show_sources_input.isChecked():
             self._redraw_simulation_canvas()
 
     @QtCore.pyqtSlot()
@@ -204,9 +298,22 @@ class UI(QtWidgets.QMainWindow):
         self.current_selected_simulation_item_id = item.data(DATA_ROLE)
         assert isinstance(self.current_selected_simulation_item_id, uuid.UUID)
 
-        self.source_inspector_widget.set_source_item(self._simulation_sources[self.current_selected_simulation_item_id])
+        self.source_inspector_widget.set_source(self._simulation_sources[self.current_selected_simulation_item_id])
 
         self._change_inspector_widget(self.source_inspector_widget)
+
+    @QtCore.pyqtSlot()
+    def _objects_list_selection_changed_cb(self) -> None:
+        item = self.objects_list.currentItem()
+        if item is None:
+            return
+
+        self.current_selected_simulation_item_id = item.data(DATA_ROLE)
+        assert isinstance(self.current_selected_simulation_item_id, uuid.UUID)
+
+        self.object_inspector_widget.set_object(self._simulation_objects[self.current_selected_simulation_item_id])
+
+        self._change_inspector_widget(self.object_inspector_widget)
 
     def resizeEvent(self, event: QtGui.QResizeEvent | None) -> None:
         super().resizeEvent(event)
@@ -228,9 +335,11 @@ class UI(QtWidgets.QMainWindow):
         tab_layout = self.inspector_tab.layout()
         assert tab_layout is not None
 
-        tab_layout.removeWidget(self.current_inspector_widget)
-        tab_layout.addWidget(new_widget)
+        tab_layout.replaceWidget(self.current_inspector_widget, new_widget)
         tab_layout.update()
+
+        self.current_inspector_widget.hide()
+        new_widget.show()
 
         self.current_inspector_widget = new_widget
 
@@ -321,7 +430,8 @@ class UI(QtWidgets.QMainWindow):
             return
 
         self.simulation.set_grid_size(value, None)
-        self.source_inspector_widget.set_max_source_pos(value, None)
+        self.source_inspector_widget.set_max_source_pos(self.simulation._grid_size_x, self.simulation._grid_size_y)
+        self.object_inspector_widget.set_simulation_size(self.simulation._grid_size_x, self.simulation._grid_size_y)
 
     @QtCore.pyqtSlot()
     def _grid_size_y_input_changed_cb(self) -> None:
@@ -331,7 +441,8 @@ class UI(QtWidgets.QMainWindow):
             return
 
         self.simulation.set_grid_size(None, value)
-        self.source_inspector_widget.set_max_source_pos(None, value)
+        self.source_inspector_widget.set_max_source_pos(self.simulation._grid_size_x, self.simulation._grid_size_y)
+        self.object_inspector_widget.set_simulation_size(self.simulation._grid_size_x, self.simulation._grid_size_y)
 
     @QtCore.pyqtSlot()
     def _simulate_button_clicked_cb(self) -> None:
@@ -341,7 +452,7 @@ class UI(QtWidgets.QMainWindow):
             self.simulation_job.stop()
             self.simulation_job = None
         else:
-            self.simulation_job = SimulationJob(self.simulation, self._simulation_sources.values())
+            self.simulation_job = SimulationJob(self.simulation, self._simulation_sources.values(), self._simulation_objects.values())
             self.simulation_job.frame_ready.connect(self._simulation_frame_ready_cb)
             self.simulation_job.start()
 
@@ -355,7 +466,7 @@ class UI(QtWidgets.QMainWindow):
         current_tab = self.lists_tab.currentIndex()
         item_id = uuid.uuid4()
         if current_tab == 1:
-            self._simulation_objects[item_id] = simulation.Box(0.0, 0.0, 250.0, 250.0, 30.0, 30.0)
+            self._simulation_objects[item_id] = simulation.Box(1.0, simulation.MU_0, 250.0, 250.0, 30.0, 30.0)
 
             list_item = QtWidgets.QListWidgetItem(f'Object {self._object_counter}')
             list_item.setData(DATA_ROLE, item_id)
