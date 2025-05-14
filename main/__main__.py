@@ -1,4 +1,5 @@
 import math
+import time
 import typing as t
 import uuid
 
@@ -36,7 +37,10 @@ class SimulationJob(QtCore.QThread):
             if not self.previous_frame_processed:
                 continue
 
+            start = time.perf_counter()
             self.simulation.simulate_frame(self.sources, self.objects)
+            print(f'Simulation took: {((time.perf_counter() - start) * 1000.0):.5f} ms')
+
             self.frame_ready.emit()
 
             self.previous_frame_processed = False
@@ -527,12 +531,14 @@ class UI(QtWidgets.QMainWindow):
 
     def _redraw_simulation_canvas(self) -> None:
         self.axes.clear()
+        start = time.perf_counter()
         self.axes.imshow(
             self.simulation.get_simulation_data(),
             origin='lower',
             vmin=-1,
             vmax=1,
             cmap='jet')
+        print(f'Render took: {((time.perf_counter() - start) * 1000.0):.5f} ms')
 
         if self.show_sources_input.isChecked():
             for source in self._simulation_sources.values():
