@@ -77,7 +77,7 @@
        <item row="0" column="0" colspan="2">
         <widget class="QTabWidget" name="lists_tab">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="sources_tab">
           <attribute name="title">
@@ -133,9 +133,9 @@
         </widget>
        </item>
        <item row="3" column="0" colspan="2">
-        <widget class="QTabWidget" name="tabWidget">
+        <widget class="QTabWidget" name="inspectors_tab">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="inspector_tab">
           <attribute name="title">
@@ -155,7 +155,7 @@
             <number>0</number>
            </property>
            <item row="0" column="0">
-            <widget class="QWidget" name="inspector_widget" native="true">
+            <widget class="QWidget" name="current_inspector_widget" native="true">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                <horstretch>0</horstretch>

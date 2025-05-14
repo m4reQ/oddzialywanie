@@ -9,7 +9,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets, uic
 from main import mpl_canvas, simulation
 
 MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
-SIMULATION_ITEM_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
+SOURCE_INSPECTOR_UI_FILEPATH = './ui/source_inspector.ui'
+DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
 
 class SimulationJob(QtCore.QThread):
     frame_ready = QtCore.pyqtSignal()
@@ -38,6 +39,84 @@ class SimulationJob(QtCore.QThread):
 
             self.previous_frame_processed = False
 
+class ObjectInspector(QtWidgets.QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._object: simulation.SimulationObject | None = None
+
+class SourceInspector(QtWidgets.QWidget):
+    source_params_changed = QtCore.pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._source: simulation.Source | None = None
+
+        self.source_name_label: QtWidgets.QLabel
+        self.source_frequency_input: QtWidgets.QDoubleSpinBox
+        self.source_type_input: QtWidgets.QComboBox
+        self.source_x_input: QtWidgets.QDoubleSpinBox
+        self.source_y_input: QtWidgets.QDoubleSpinBox
+
+        uic.load_ui.loadUi(SOURCE_INSPECTOR_UI_FILEPATH, self)
+
+        self.source_type_to_item_index_map = {
+            simulation.SourceSine: 0,
+            simulation.SourceCosine: 1}
+
+        self.source_type_input.addItem(simulation.SourceSine.__name__)
+        self.source_type_input.setItemData(0, simulation.SourceSine, DATA_ROLE)
+
+        self.source_type_input.addItem(simulation.SourceCosine.__name__)
+        self.source_type_input.setItemData(0, simulation.SourceCosine, DATA_ROLE)
+
+        self.source_x_input.valueChanged.connect(self._source_x_input_changed_cb)
+        self.source_y_input.valueChanged.connect(self._source_y_input_changed_cb)
+        self.source_frequency_input.valueChanged.connect(self._source_frequency_input_changed_cb)
+
+        self.source_frequency_input.setMaximum(np.inf)
+
+    @QtCore.pyqtSlot()
+    def _source_frequency_input_changed_cb(self) -> None:
+        if self._source is not None:
+            self._source.frequency = self.source_frequency_input.value()
+            self.source_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _source_x_input_changed_cb(self) -> None:
+        if self._source is not None:
+            self._source.pos_x = self.source_x_input.value()
+            self.source_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _source_y_input_changed_cb(self) -> None:
+        if self._source is not None:
+            self._source.pos_y = self.source_y_input.value()
+            self.source_params_changed.emit()
+
+    def set_source_item(self, source: simulation.Source | None) -> None:
+        self._source = source
+
+        if source is None:
+            return
+
+        self.source_name_label.setText(f'{type(source).__name__}')
+        self.source_frequency_input.setValue(source.frequency)
+        self.source_x_input.setValue(source.pos_x)
+        self.source_y_input.setValue(source.pos_y)
+        self.source_type_input.setCurrentIndex(self.source_type_to_item_index_map[type(source)])
+
+    def set_max_source_pos(self, x: float | None, y: float | None) -> None:
+        if x is None:
+            x = self.source_x_input.value()
+
+        if y is None:
+            y = self.source_y_input.value()
+
+        self.source_x_input.setMaximum(x)
+        self.source_y_input.setMaximum(y)
+
 class UI(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -48,7 +127,8 @@ class UI(QtWidgets.QMainWindow):
         self.add_button: QtWidgets.QPushButton
         self.remove_button: QtWidgets.QPushButton
         self.figure_canvas: mpl_canvas.MPLCanvas
-        self.inspector_widget: QtWidgets.QWidget
+        self.current_inspector_widget: QtWidgets.QWidget
+        self.inspector_tab: QtWidgets.QWidget
         self.sources_list: QtWidgets.QListWidget
         self.objects_list: QtWidgets.QListWidget
         self.lists_tab: QtWidgets.QTabWidget
@@ -64,9 +144,13 @@ class UI(QtWidgets.QMainWindow):
         self.show_objects_input: QtWidgets.QCheckBox
         self.show_sources_input: QtWidgets.QCheckBox
         self.show_pml_input: QtWidgets.QCheckBox
+        self.inspectors_tab: QtWidgets.QTabWidget
+        self.source_inspector_widget = SourceInspector()
 
         self.status_bar_frame_index = QtWidgets.QLabel('Current frame: 0')
         self.status_bar.addWidget(self.status_bar_frame_index)
+
+        self.current_selected_simulation_item_id: uuid.UUID | None = None
 
         self._simulation_sources = dict[uuid.UUID, simulation.Source]()
         self._source_counter = 0
@@ -103,6 +187,26 @@ class UI(QtWidgets.QMainWindow):
         self.show_objects_input.checkStateChanged.connect(self._show_checkbox_changed_cb)
         self.show_sources_input.checkStateChanged.connect(self._show_checkbox_changed_cb)
         self.show_pml_input.checkStateChanged.connect(self._show_pml_input_cb)
+        self.sources_list.itemSelectionChanged.connect(self._sources_list_selection_changed_cb)
+        self.source_inspector_widget.source_params_changed.connect(self._source_params_changed_cb)
+
+    @QtCore.pyqtSlot()
+    def _source_params_changed_cb(self) -> None:
+        if not self.show_pml_input.isChecked():
+            self._redraw_simulation_canvas()
+
+    @QtCore.pyqtSlot()
+    def _sources_list_selection_changed_cb(self) -> None:
+        item = self.sources_list.currentItem()
+        if item is None:
+            return
+
+        self.current_selected_simulation_item_id = item.data(DATA_ROLE)
+        assert isinstance(self.current_selected_simulation_item_id, uuid.UUID)
+
+        self.source_inspector_widget.set_source_item(self._simulation_sources[self.current_selected_simulation_item_id])
+
+        self._change_inspector_widget(self.source_inspector_widget)
 
     def resizeEvent(self, event: QtGui.QResizeEvent | None) -> None:
         super().resizeEvent(event)
@@ -117,10 +221,18 @@ class UI(QtWidgets.QMainWindow):
 
     def _redraw_pml_canvas(self) -> None:
         self.axes.imshow(self.simulation.get_pml_data(), origin='lower', cmap='viridis', aspect='auto')
-        self.axes.set_xlabel('x')
-        self.axes.set_ylabel('y')
 
         self.figure_canvas.draw()
+
+    def _change_inspector_widget(self, new_widget: QtWidgets.QWidget) -> None:
+        tab_layout = self.inspector_tab.layout()
+        assert tab_layout is not None
+
+        tab_layout.removeWidget(self.current_inspector_widget)
+        tab_layout.addWidget(new_widget)
+        tab_layout.update()
+
+        self.current_inspector_widget = new_widget
 
     @QtCore.pyqtSlot()
     def _pml_reflectivity_input_changed_cb(self) -> None:
@@ -140,6 +252,8 @@ class UI(QtWidgets.QMainWindow):
 
         if self.show_pml_input.isChecked():
             self._redraw_pml_canvas()
+        else:
+            self._redraw_simulation_canvas()
 
     @QtCore.pyqtSlot()
     def _show_checkbox_changed_cb(self) -> None:
@@ -149,6 +263,7 @@ class UI(QtWidgets.QMainWindow):
     def _clear_button_clicked_cb(self) -> None:
         self._stop_current_simulation_job()
         self.simulation.reset()
+        self._redraw_simulation_canvas()
 
     @QtCore.pyqtSlot()
     def _simulation_frame_ready_cb(self) -> None:
@@ -205,7 +320,8 @@ class UI(QtWidgets.QMainWindow):
             self.grid_size_x_input.setValue(self.simulation._grid_size_x)
             return
 
-        self.simulation.set_grid_size(value, self.simulation._grid_size_y)
+        self.simulation.set_grid_size(value, None)
+        self.source_inspector_widget.set_max_source_pos(value, None)
 
     @QtCore.pyqtSlot()
     def _grid_size_y_input_changed_cb(self) -> None:
@@ -214,7 +330,8 @@ class UI(QtWidgets.QMainWindow):
             self.grid_size_y_input.setValue(self.simulation._grid_size_y)
             return
 
-        self.simulation.set_grid_size(self.simulation._grid_size_x, value)
+        self.simulation.set_grid_size(None, value)
+        self.source_inspector_widget.set_max_source_pos(None, value)
 
     @QtCore.pyqtSlot()
     def _simulate_button_clicked_cb(self) -> None:
@@ -241,18 +358,18 @@ class UI(QtWidgets.QMainWindow):
             self._simulation_objects[item_id] = simulation.Box(0.0, 0.0, 250.0, 250.0, 30.0, 30.0)
 
             list_item = QtWidgets.QListWidgetItem(f'Object {self._object_counter}')
-            list_item.setData(SIMULATION_ITEM_ROLE, item_id)
+            list_item.setData(DATA_ROLE, item_id)
             self.objects_list.addItem(list_item)
 
             self._object_counter += 1
         elif current_tab == 0:
-            item = simulation.SourceSine(250.0, 250.0, 1000.0)
+            item = simulation.SourceSine(250.0, 250.0, 60e9)
             item.calculate_data(self.simulation._dt, 1000)
 
             self._simulation_sources[item_id] = item
 
             list_item = QtWidgets.QListWidgetItem(f'Source {self._source_counter}')
-            list_item.setData(SIMULATION_ITEM_ROLE, item_id)
+            list_item.setData(DATA_ROLE, item_id)
             self.sources_list.addItem(list_item)
 
             self._source_counter += 1
@@ -265,7 +382,7 @@ class UI(QtWidgets.QMainWindow):
         if current_tab == 0:
             current_item = self.sources_list.currentItem()
             if current_item is not None:
-                item_id = current_item.data(SIMULATION_ITEM_ROLE)
+                item_id = current_item.data(DATA_ROLE)
                 assert isinstance(item_id, uuid.UUID)
 
                 self.sources_list.takeItem(self.sources_list.row(current_item))
@@ -273,7 +390,7 @@ class UI(QtWidgets.QMainWindow):
         elif current_tab == 1:
             current_item = self.objects_list.currentItem()
             if current_item is not None:
-                item_id = current_item.data(SIMULATION_ITEM_ROLE)
+                item_id = current_item.data(DATA_ROLE)
                 assert isinstance(item_id, uuid.UUID)
 
                 self.objects_list.takeItem(self.objects_list.row(current_item))
@@ -283,8 +400,6 @@ class UI(QtWidgets.QMainWindow):
 
     def _redraw_simulation_canvas(self) -> None:
         self.axes.clear()
-        self.axes.set_xlabel('X')
-        self.axes.set_ylabel('Y')
         self.axes.imshow(
             self.simulation.get_simulation_data(),
             origin='lower',
@@ -307,7 +422,7 @@ class UI(QtWidgets.QMainWindow):
             item = _list.item(i)
             assert item is not None
 
-            if item.data(SIMULATION_ITEM_ROLE) == object_id:
+            if item.data(DATA_ROLE) == object_id:
                 _list.setCurrentItem(item)
 
     def _get_item_name(self, tab_index: int) -> str:

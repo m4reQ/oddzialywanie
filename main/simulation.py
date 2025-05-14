@@ -62,6 +62,7 @@ class Box(SimulationObject):
 class Source(abc.ABC):
     pos_x: float
     pos_y: float
+    frequency: float
     data: np.ndarray = dataclasses.field(init=False)
 
     @abc.abstractmethod
@@ -78,7 +79,13 @@ class Source(abc.ABC):
 
 @dataclasses.dataclass
 class SourceSine(Source):
-    frequency: float
+    length: float = 30.0
+
+    def calculate_data(self, dt: float, time_steps: int) -> None:
+        self.data = np.sin(2 * np.pi * self.frequency * _generate_time_array(self.length, dt, time_steps))
+
+@dataclasses.dataclass
+class SourceCosine(Source):
     length: float = 30.0
 
     def calculate_data(self, dt: float, time_steps: int) -> None:
@@ -144,7 +151,13 @@ class Simulation(QtCore.QObject):
         self._update_allowance_arrays()
         self._emit_deltas_changed()
 
-    def set_grid_size(self, x: int, y: int) -> None:
+    def set_grid_size(self, x: int | None, y: int | None) -> None:
+        if x is None:
+            x = self._grid_size_x
+
+        if y is None:
+            y = self._grid_size_y
+
         self._grid_size_x = x
         self._grid_size_y = y
 
