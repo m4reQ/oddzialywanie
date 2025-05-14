@@ -63,6 +63,22 @@ class ObjectInspector(QtWidgets.QWidget):
         self.height_input.valueChanged.connect(self._height_changed_cb)
         self.x_input.valueChanged.connect(self._x_input_changed_cb)
         self.y_input.valueChanged.connect(self._y_input_changed_cb)
+        self.permittivity_input.valueChanged.connect(self._permittivity_input_changed_cb)
+        self.permeability_input.valueChanged.connect(self._permeability_input_changed_cb)
+
+    @QtCore.pyqtSlot()
+    def _permittivity_input_changed_cb(self) -> None:
+        assert isinstance(self._object, simulation.Box)
+
+        self._object.permittivity = self.permittivity_input.value()
+        self.object_params_changed.emit()
+
+    @QtCore.pyqtSlot()
+    def _permeability_input_changed_cb(self) -> None:
+        assert isinstance(self._object, simulation.Box)
+
+        self._object.permeability = self.permeability_input.value()
+        self.object_params_changed.emit()
 
     @QtCore.pyqtSlot()
     def _x_input_changed_cb(self) -> None:
