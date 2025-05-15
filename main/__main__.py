@@ -7,8 +7,10 @@ import numpy as np
 from matplotlib.patches import Circle
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
-from main import mpl_canvas, simulation
+from main import simulation
+from main.widgets import mpl_canvas
 from main.widgets.frame_info_display import FrameInfoDisplay
+from main.widgets.simulation_control_button import SimulationControlButton
 from main.widgets.simulation_state_indicator import SimulationStateIndicator
 
 MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
@@ -227,7 +229,7 @@ class UI(QtWidgets.QMainWindow):
         uic.load_ui.loadUi(MAIN_WINDOW_UI_FILEPATH, self)
 
         self.clear_button: QtWidgets.QPushButton
-        self.simulate_button: QtWidgets.QPushButton
+        self.simulate_button: SimulationControlButton
         self.add_button: QtWidgets.QPushButton
         self.remove_button: QtWidgets.QPushButton
         self.figure_canvas: mpl_canvas.MPLCanvas
@@ -324,9 +326,6 @@ class UI(QtWidgets.QMainWindow):
         new_widget.show()
 
         self.current_inspector_widget = new_widget
-
-    def _set_simulation_state(self, state: simulation.SimulationState) -> None:
-        self.simulation_state_indicator.set_state(state)
 
     def _redraw_simulation_canvas(self) -> float:
         start = time.perf_counter()
@@ -524,19 +523,18 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _simulate_button_clicked_cb(self) -> None:
-        self.simulate_button.setText('Start Simulation' if self.simulation_job is not None else 'Stop Simulation')
+        is_simulation_running = self.simulation_job is not None
 
-        if self.simulation_job is not None:
-            self.simulation_job.stop()
+        if is_simulation_running:
+            self.simulation_job.stop() # type: ignore[union-attr]
             self.simulation_job = None
-
-            self._set_simulation_state(simulation.SimulationState.OK)
         else:
             self.simulation_job = SimulationJob(self.simulation, self._simulation_sources.values(), self._simulation_objects.values())
             self.simulation_job.frame_ready.connect(self._simulation_frame_ready_cb)
             self.simulation_job.start()
 
-            self._set_simulation_state(simulation.SimulationState.RUNNING)
+        self.simulate_button.set_state(not is_simulation_running)
+        self.simulation_state_indicator.set_state(simulation.SimulationState.RUNNING if not is_simulation_running else simulation.SimulationState.OK)
 
     @QtCore.pyqtSlot(uuid.UUID)
     def _simulation_scene_selection_cb(self, object_id: uuid.UUID) -> None:
