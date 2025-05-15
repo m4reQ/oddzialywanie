@@ -135,7 +135,7 @@
        <item row="3" column="0" colspan="2">
         <widget class="QTabWidget" name="inspectors_tab">
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="inspector_tab">
           <attribute name="title">
@@ -402,10 +402,16 @@
      </widget>
     </item>
     <item row="0" column="0" rowspan="2" colspan="4">
-     <widget class="QTabWidget" name="tabWidget">
+     <widget class="QTabWidget" name="simulation_tab">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <property name="tabsClosable">
+       <bool>false</bool>
+      </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
-        <string>Tab 1</string>
+        <string>Simulation</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <property name="leftMargin">
@@ -427,7 +433,7 @@
       </widget>
       <widget class="QWidget" name="tab_2">
        <attribute name="title">
-        <string>Tab 2</string>
+        <string>Sensors</string>
        </attribute>
       </widget>
      </widget>

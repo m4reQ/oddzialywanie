@@ -234,6 +234,7 @@ class UI(QtWidgets.QMainWindow):
         super().__init__()
         uic.load_ui.loadUi(MAIN_WINDOW_UI_FILEPATH, self)
 
+        self.simulation_tab: QtWidgets.QTabWidget
         self.clear_button: QtWidgets.QPushButton
         self.simulate_button: SimulationControlButton
         self.add_button: QtWidgets.QPushButton
@@ -336,25 +337,26 @@ class UI(QtWidgets.QMainWindow):
     def _redraw_simulation_canvas(self) -> float:
         start = time.perf_counter()
 
-        self.axes.clear()
-        self.axes.imshow(
-            self.simulation.get_simulation_data(),
-            origin='lower',
-            vmin=-1,
-            vmax=1,
-            cmap='jet')
+        if self.simulation_tab.currentIndex() == 0:
+            self.axes.clear()
+            self.axes.imshow(
+                self.simulation.get_simulation_data(),
+                origin='lower',
+                vmin=-1,
+                vmax=1,
+                cmap='jet')
 
-        # TODO Use axes_image.set_data() with cached axesimage to speed up rendering
+            # TODO Use axes_image.set_data() with cached axesimage to speed up rendering
 
-        if self.show_sources_input.isChecked():
-            for source in self._simulation_sources.values():
-                self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
+            if self.show_sources_input.isChecked():
+                for source in self._simulation_sources.values():
+                    self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
 
-        if self.show_objects_input.isChecked():
-            for object in self._simulation_objects.values():
-                object.draw(self.axes)
+            if self.show_objects_input.isChecked():
+                for object in self._simulation_objects.values():
+                    object.draw(self.axes)
 
-        self.figure_canvas.draw()
+            self.figure_canvas.draw()
 
         return time.perf_counter() - start
 
@@ -539,6 +541,9 @@ class UI(QtWidgets.QMainWindow):
             self.simulation_job.frame_ready.connect(self._simulation_frame_ready_cb)
             self.simulation_job.start()
 
+            self.show_pml_input.setChecked(False)
+
+        self.show_pml_input.setDisabled(not is_simulation_running)
         self.simulate_button.set_state(not is_simulation_running)
         self.simulation_state_indicator.set_state(SimulationState.RUNNING if not is_simulation_running else SimulationState.OK)
 
