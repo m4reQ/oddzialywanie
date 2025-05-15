@@ -217,9 +217,15 @@ class Simulation(QtCore.QObject):
         n2 = self._grid_size_y - 1
         n21 = self._grid_size_x - 1
 
-        self._hy[n1:n2, n11:n21] = self._pml_profile.a[n1:n2, n11:n21] * self._hy[n1:n2, n11:n21] + self._pml_profile.b[n1:n2, n11:n21] * self._am[n1:n2, n11:n21] * (self._ez[n1 + 1:n2 + 1, n11:n21] - self._ez[n1:n2, n11:n21])
-        self._hx[n1:n2, n11:n21] = self._pml_profile.a[n1:n2, n11:n21] * self._hx[n1:n2, n11:n21] - self._pml_profile.b[n1:n2, n11:n21] * self._am[n1:n2, n11:n21] * (self._ez[n1:n2, n11 + 1:n21 + 1] - self._ez[n1:n2, n11:n21])
-        self._ez[n1 + 1:n2 + 1, n11 + 1:n21 + 1] = self._pml_profile.c[n1 + 1:n2 + 1, n11 + 1:n21 + 1] * self._ez[n1 + 1:n2 + 1, n11 + 1:n21 + 1] + self._pml_profile.d[n1 + 1:n2 + 1, n11 + 1:n21 + 1] * self._ae[n1 + 1:n2 + 1, n11 + 1:n21 + 1] * (self._hy[n1 + 1:n2 + 1, n11 + 1:n21 + 1] - self._hy[n1:n2, n11 + 1:n21 + 1] - self._hx[n1 + 1:n2 + 1, n11 + 1:n21 + 1] + self._hx[n1 + 1:n2 + 1, n11:n21])
+        idx1 = (slice(n1, n2), slice(n11, n21))
+        idx2 = (slice(n1 + 1, n2 + 1), slice(n11 + 1, n21 + 1))
+
+        pml_a = self._pml_profile.a[idx1]
+        pml_b = self._pml_profile.b[idx1]
+
+        self._hy[idx1] = pml_a * self._hy[idx1] + pml_b * self._am[idx1] * (self._ez[n1 + 1:n2 + 1, n11:n21] - self._ez[idx1])
+        self._hx[idx1] = pml_a * self._hx[idx1] - pml_b * self._am[idx1] * (self._ez[n1:n2, n11 + 1:n21 + 1] - self._ez[idx1])
+        self._ez[idx2] = self._pml_profile.c[idx2] * self._ez[idx2] + self._pml_profile.d[idx2] * self._ae[idx2] * (self._hy[idx2] - self._hy[n1:n2, n11 + 1:n21 + 1] - self._hx[idx2] + self._hx[n1 + 1:n2 + 1, n11:n21])
 
         for source in sources:
             self._ez[source.pos_x_int, source.pos_y_int] = source.data[self._current_frame]
