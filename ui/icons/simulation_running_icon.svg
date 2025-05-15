@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="50.759415mm"
+   height="50.759415mm"
+   viewBox="0 0 50.759415 50.759415"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   sodipodi:docname="simulation_running_icon.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     showguides="false"
+     inkscape:zoom="0.99150695"
+     inkscape:cx="-80.180981"
+     inkscape:cy="227.43159"
+     inkscape:window-width="1920"
+     inkscape:window-height="1001"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       id="grid1"
+       units="mm"
+       originx="-149.06367"
+       originy="-188.43632"
+       spacingx="0.99999998"
+       spacingy="1"
+       empcolor="#0099e5"
+       empopacity="0.30196078"
+       color="#0099e5"
+       opacity="0.14901961"
+       empspacing="5"
+       dotted="false"
+       gridanglex="30"
+       gridanglez="30"
+       visible="false" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-149.06367,-188.43632)">
+    <g
+       id="g12"
+       transform="translate(-1.8679479,-52.035692)">
+      <circle
+         style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.782437;stroke-dasharray:none;stroke-opacity:1"
+         id="path3-3"
+         cx="176.31133"
+         cy="265.85172"
+         r="24.988489" />
+      <g
+         id="g9"
+         transform="translate(-0.75268555,-1.2010803)">
+        <circle
+           style="fill:#000000;stroke-width:0.0591676"
+           id="path1"
+           cx="185.6676"
+           cy="267.0528"
+           r="3.1329117" />
+        <circle
+           style="fill:#000000;stroke-width:0.0591676"
+           id="path1-7"
+           cx="177.06401"
+           cy="267.0528"
+           r="3.1329117" />
+        <circle
+           style="fill:#000000;stroke-width:0.0591676"
+           id="path1-6"
+           cx="168.46042"
+           cy="267.0528"
+           r="3.1329117" />
+      </g>
+    </g>
+  </g>
+</svg>

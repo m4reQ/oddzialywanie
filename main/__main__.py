@@ -8,6 +8,8 @@ from matplotlib.patches import Circle
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
 from main import mpl_canvas, simulation
+from main.widgets.frame_info_display import FrameInfoDisplay
+from main.widgets.simulation_state_indicator import SimulationStateIndicator
 
 MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
 SOURCE_INSPECTOR_UI_FILEPATH = './ui/source_inspector.ui'
@@ -15,7 +17,7 @@ OBJECT_INSPECTOR_UI_FILEPATH = './ui/object_inspector.ui'
 DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
 
 class SimulationJob(QtCore.QThread):
-    frame_ready = QtCore.pyqtSignal()
+    frame_ready = QtCore.pyqtSignal(float)
 
     def __init__(self, simulation: simulation.Simulation, sources: t.Iterable[simulation.Source], objects: t.Iterable[simulation.SimulationObject]) -> None:
         super().__init__()
@@ -39,9 +41,9 @@ class SimulationJob(QtCore.QThread):
 
             start = time.perf_counter()
             self.simulation.simulate_frame(self.sources, self.objects)
-            print(f'Simulation took: {((time.perf_counter() - start) * 1000.0):.5f} ms')
+            simulation_time = time.perf_counter() - start
 
-            self.frame_ready.emit()
+            self.frame_ready.emit(simulation_time)
 
             self.previous_frame_processed = False
 
@@ -249,9 +251,11 @@ class UI(QtWidgets.QMainWindow):
         self.inspectors_tab: QtWidgets.QTabWidget
         self.source_inspector_widget = SourceInspector()
         self.object_inspector_widget = ObjectInspector()
+        self.status_bar_frame_info = FrameInfoDisplay()
+        self.simulation_state_indicator = SimulationStateIndicator(self.status_bar.height(), simulation.SimulationState.OK)
 
-        self.status_bar_frame_index = QtWidgets.QLabel('Current frame: 0')
-        self.status_bar.addWidget(self.status_bar_frame_index)
+        self.status_bar.addWidget(self.simulation_state_indicator)
+        self.status_bar.addWidget(self.status_bar_frame_info)
 
         self.current_selected_simulation_item_id: uuid.UUID | None = None
 
@@ -299,6 +303,84 @@ class UI(QtWidgets.QMainWindow):
         self.source_inspector_widget.source_params_changed.connect(self._source_params_changed_cb)
         self.object_inspector_widget.object_params_changed.connect(self._object_params_changed_cb)
 
+    def _stop_current_simulation_job(self) -> None:
+        if self.simulation_job is not None:
+            self.simulation_job.stop()
+            self.simulation_job = None
+
+    def _redraw_pml_canvas(self) -> None:
+        self.axes.imshow(self.simulation.get_pml_data(), origin='lower', cmap='viridis', aspect='auto')
+
+        self.figure_canvas.draw()
+
+    def _change_inspector_widget(self, new_widget: QtWidgets.QWidget) -> None:
+        tab_layout = self.inspector_tab.layout()
+        assert tab_layout is not None
+
+        tab_layout.replaceWidget(self.current_inspector_widget, new_widget)
+        tab_layout.update()
+
+        self.current_inspector_widget.hide()
+        new_widget.show()
+
+        self.current_inspector_widget = new_widget
+
+    def _set_simulation_state(self, state: simulation.SimulationState) -> None:
+        self.simulation_state_indicator.set_state(state)
+
+    def _redraw_simulation_canvas(self) -> float:
+        start = time.perf_counter()
+
+        self.axes.clear()
+        self.axes.imshow(
+            self.simulation.get_simulation_data(),
+            origin='lower',
+            vmin=-1,
+            vmax=1,
+            cmap='jet')
+
+        # TODO Use axes_image.set_data() with cached axesimage to speed up rendering
+
+        if self.show_sources_input.isChecked():
+            for source in self._simulation_sources.values():
+                self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
+
+        if self.show_objects_input.isChecked():
+            for object in self._simulation_objects.values():
+                object.draw(self.axes)
+
+        self.figure_canvas.draw()
+
+        return time.perf_counter() - start
+
+    def _select_list_item_by_id(self, _list: QtWidgets.QListWidget, object_id: uuid.UUID) -> None:
+        for i in range(_list.count()):
+            item = _list.item(i)
+            assert item is not None
+
+            if item.data(DATA_ROLE) == object_id:
+                _list.setCurrentItem(item)
+
+    def _get_item_name(self, tab_index: int) -> str:
+        if tab_index == 0:
+            self._source_counter += 1
+            return f'Source {self._source_counter}'
+
+        self._object_counter += 1
+        return f'Object {self._object_counter}'
+
+    def _get_current_tab_list(self) -> QtWidgets.QListWidget:
+        if self.lists_tab.currentIndex() == 0:
+            return self.sources_list
+
+        return self.objects_list
+
+    def resizeEvent(self, event: QtGui.QResizeEvent | None) -> None:
+        super().resizeEvent(event)
+
+        if event is not None:
+            self.figure_canvas.figure.tight_layout(pad=1)
+
     @QtCore.pyqtSlot()
     def _object_params_changed_cb(self) -> None:
         if not self.show_pml_input.isChecked() and self.show_objects_input.isChecked():
@@ -335,34 +417,6 @@ class UI(QtWidgets.QMainWindow):
 
         self._change_inspector_widget(self.object_inspector_widget)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent | None) -> None:
-        super().resizeEvent(event)
-
-        if event is not None:
-            self.figure_canvas.figure.tight_layout(pad=1)
-
-    def _stop_current_simulation_job(self) -> None:
-        if self.simulation_job is not None:
-            self.simulation_job.stop()
-            self.simulation_job = None
-
-    def _redraw_pml_canvas(self) -> None:
-        self.axes.imshow(self.simulation.get_pml_data(), origin='lower', cmap='viridis', aspect='auto')
-
-        self.figure_canvas.draw()
-
-    def _change_inspector_widget(self, new_widget: QtWidgets.QWidget) -> None:
-        tab_layout = self.inspector_tab.layout()
-        assert tab_layout is not None
-
-        tab_layout.replaceWidget(self.current_inspector_widget, new_widget)
-        tab_layout.update()
-
-        self.current_inspector_widget.hide()
-        new_widget.show()
-
-        self.current_inspector_widget = new_widget
-
     @QtCore.pyqtSlot()
     def _pml_reflectivity_input_changed_cb(self) -> None:
         self.simulation.set_pml_params(reflectivity=self.pml_reflectivity_input.value())
@@ -394,10 +448,14 @@ class UI(QtWidgets.QMainWindow):
         self.simulation.reset()
         self._redraw_simulation_canvas()
 
-    @QtCore.pyqtSlot()
-    def _simulation_frame_ready_cb(self) -> None:
-        self._redraw_simulation_canvas()
-        self.status_bar_frame_index.setText(f'Current frame: {self.simulation.current_frame}')
+    @QtCore.pyqtSlot(float)
+    def _simulation_frame_ready_cb(self, simulation_time: float) -> None:
+        render_time = self._redraw_simulation_canvas()
+
+        self.status_bar_frame_info.set_data(
+            self.simulation.current_frame,
+            render_time,
+            simulation_time)
 
         if self.simulation_job is not None:
             self.simulation_job.notify_frame_processed()
@@ -471,10 +529,14 @@ class UI(QtWidgets.QMainWindow):
         if self.simulation_job is not None:
             self.simulation_job.stop()
             self.simulation_job = None
+
+            self._set_simulation_state(simulation.SimulationState.OK)
         else:
             self.simulation_job = SimulationJob(self.simulation, self._simulation_sources.values(), self._simulation_objects.values())
             self.simulation_job.frame_ready.connect(self._simulation_frame_ready_cb)
             self.simulation_job.start()
+
+            self._set_simulation_state(simulation.SimulationState.RUNNING)
 
     @QtCore.pyqtSlot(uuid.UUID)
     def _simulation_scene_selection_cb(self, object_id: uuid.UUID) -> None:
@@ -528,59 +590,6 @@ class UI(QtWidgets.QMainWindow):
                 self._simulation_objects.pop(item_id)
 
         self._redraw_simulation_canvas()
-
-    def _redraw_simulation_canvas(self) -> None:
-        self.axes.clear()
-        start = time.perf_counter()
-        self.axes.imshow(
-            self.simulation.get_simulation_data(),
-            origin='lower',
-            vmin=-1,
-            vmax=1,
-            cmap='jet')
-        print(f'Render took: {((time.perf_counter() - start) * 1000.0):.5f} ms')
-
-        if self.show_sources_input.isChecked():
-            for source in self._simulation_sources.values():
-                self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
-
-        if self.show_objects_input.isChecked():
-            for object in self._simulation_objects.values():
-                object.draw(self.axes)
-
-        self.figure_canvas.draw()
-
-    def _select_list_item_by_id(self, _list: QtWidgets.QListWidget, object_id: uuid.UUID) -> None:
-        for i in range(_list.count()):
-            item = _list.item(i)
-            assert item is not None
-
-            if item.data(DATA_ROLE) == object_id:
-                _list.setCurrentItem(item)
-
-    def _get_item_name(self, tab_index: int) -> str:
-        if tab_index == 0:
-            self._source_counter += 1
-            return f'Source {self._source_counter}'
-
-        self._object_counter += 1
-        return f'Object {self._object_counter}'
-
-    def _get_current_tab_list(self) -> QtWidgets.QListWidget:
-        if self.lists_tab.currentIndex() == 0:
-            return self.sources_list
-
-        return self.objects_list
-
-def _apply_jet_colormap(data: np.ndarray) -> np.ndarray:
-    data_min = np.min(data)
-    data_max = np.max(data)
-    normalized = np.zeros_like(data) if data_max == data_min else (data - data_min) / (data_max - data_min)
-
-    r = np.clip(1.5 - np.abs(4.0 * normalized - 3.0), 0, 1)
-    g = np.clip(1.5 - np.abs(4.0 * normalized - 2.0), 0, 1)
-    b = np.clip(1.5 - np.abs(4.0 * normalized - 1.0), 0, 1)
-    return (np.stack((r, g, b), axis=-1) * 255).astype(np.uint8)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])

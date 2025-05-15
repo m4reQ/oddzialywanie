@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import enum
 import typing as t
 
 import numpy as np
@@ -14,6 +15,11 @@ S = 1 / np.sqrt(2)
 
 DEFAULT_DX = 3e-3
 DEFAULT_DT = S * DEFAULT_DX / C
+
+class SimulationState(enum.Enum):
+    OK = enum.auto()
+    ERROR = enum.auto()
+    RUNNING = enum.auto()
 
 @dataclasses.dataclass
 class PMLProfile:
@@ -134,7 +140,7 @@ class Simulation(QtCore.QObject):
         self.reset()
 
     @property
-    def current_frame(self) -> float:
+    def current_frame(self) -> int:
         return self._current_frame
 
     def emit_params_changed_signal(self) -> None:
