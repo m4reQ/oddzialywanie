@@ -7,7 +7,13 @@ import numpy as np
 from matplotlib.patches import Circle
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
-from main import simulation
+from main.simulation.objects.box import Box
+from main.simulation.objects.simulation_object import SimulationObject
+from main.simulation.simulation import DEFAULT_DT, DEFAULT_DX, MU_0, Simulation
+from main.simulation.simulation_state import SimulationState
+from main.simulation.sources.cosine_source import CosineSource
+from main.simulation.sources.simulation_source import SimulationSource
+from main.simulation.sources.sine_source import SineSource
 from main.widgets import mpl_canvas
 from main.widgets.frame_info_display import FrameInfoDisplay
 from main.widgets.simulation_control_button import SimulationControlButton
@@ -21,7 +27,7 @@ DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
 class SimulationJob(QtCore.QThread):
     frame_ready = QtCore.pyqtSignal(float)
 
-    def __init__(self, simulation: simulation.Simulation, sources: t.Iterable[simulation.Source], objects: t.Iterable[simulation.SimulationObject]) -> None:
+    def __init__(self, simulation: Simulation, sources: t.Iterable[SimulationSource], objects: t.Iterable[SimulationObject]) -> None:
         super().__init__()
 
         self.simulation = simulation
@@ -55,7 +61,7 @@ class ObjectInspector(QtWidgets.QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self._object: simulation.SimulationObject | None = None
+        self._object: SimulationObject | None = None
 
         self.width_input: QtWidgets.QDoubleSpinBox
         self.height_input: QtWidgets.QDoubleSpinBox
@@ -76,28 +82,28 @@ class ObjectInspector(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot()
     def _permittivity_input_changed_cb(self) -> None:
-        assert isinstance(self._object, simulation.Box)
+        assert isinstance(self._object, Box)
 
         self._object.permittivity = self.permittivity_input.value()
         self.object_params_changed.emit()
 
     @QtCore.pyqtSlot()
     def _permeability_input_changed_cb(self) -> None:
-        assert isinstance(self._object, simulation.Box)
+        assert isinstance(self._object, Box)
 
         self._object.permeability = self.permeability_input.value()
         self.object_params_changed.emit()
 
     @QtCore.pyqtSlot()
     def _x_input_changed_cb(self) -> None:
-        assert isinstance(self._object, simulation.Box)
+        assert isinstance(self._object, Box)
 
         self._object.pos_x = self.x_input.value()
         self.object_params_changed.emit()
 
     @QtCore.pyqtSlot()
     def _y_input_changed_cb(self) -> None:
-        assert isinstance(self._object, simulation.Box)
+        assert isinstance(self._object, Box)
 
         self._object.pos_y = self.y_input.value()
         self.object_params_changed.emit()
@@ -105,7 +111,7 @@ class ObjectInspector(QtWidgets.QWidget):
     @QtCore.pyqtSlot()
     def _width_changed_cb(self) -> None:
         if self._object is not None:
-            assert isinstance(self._object, simulation.Box)
+            assert isinstance(self._object, Box)
 
             self._object.width = self.width_input.value()
             self.object_params_changed.emit()
@@ -113,7 +119,7 @@ class ObjectInspector(QtWidgets.QWidget):
     @QtCore.pyqtSlot()
     def _height_changed_cb(self) -> None:
         if self._object is not None:
-            assert isinstance(self._object, simulation.Box)
+            assert isinstance(self._object, Box)
 
             self._object.height = self.height_input.value()
             self.object_params_changed.emit()
@@ -124,7 +130,7 @@ class ObjectInspector(QtWidgets.QWidget):
         current_x = 0.0
         current_y = 0.0
         if self._object is not None:
-            assert isinstance(self._object, simulation.Box)
+            assert isinstance(self._object, Box)
 
             current_width = self._object.width
             current_height = self._object.height
@@ -136,13 +142,13 @@ class ObjectInspector(QtWidgets.QWidget):
         self.width_input.setMaximum(x - current_x)
         self.height_input.setMaximum(y - current_y)
 
-    def set_object(self, object: simulation.SimulationObject | None) -> None:
+    def set_object(self, object: SimulationObject | None) -> None:
         self._object = object
 
         if object is None:
             return
 
-        assert isinstance(object, simulation.Box)
+        assert isinstance(object, Box)
         self.object_name_label.setText('Object')
         self.width_input.setValue(object.width)
         self.height_input.setValue(object.height)
@@ -157,7 +163,7 @@ class SourceInspector(QtWidgets.QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self._source: simulation.Source | None = None
+        self._source: SimulationSource | None = None
 
         self.source_name_label: QtWidgets.QLabel
         self.source_frequency_input: QtWidgets.QDoubleSpinBox
@@ -168,14 +174,14 @@ class SourceInspector(QtWidgets.QWidget):
         uic.load_ui.loadUi(SOURCE_INSPECTOR_UI_FILEPATH, self)
 
         self.source_type_to_item_index_map = {
-            simulation.SourceSine: 0,
-            simulation.SourceCosine: 1}
+            SineSource: 0,
+            CosineSource: 1}
 
-        self.source_type_input.addItem(simulation.SourceSine.__name__)
-        self.source_type_input.setItemData(0, simulation.SourceSine, DATA_ROLE)
+        self.source_type_input.addItem(SineSource.__name__)
+        self.source_type_input.setItemData(0, SineSource, DATA_ROLE)
 
-        self.source_type_input.addItem(simulation.SourceCosine.__name__)
-        self.source_type_input.setItemData(0, simulation.SourceCosine, DATA_ROLE)
+        self.source_type_input.addItem(CosineSource.__name__)
+        self.source_type_input.setItemData(0, CosineSource, DATA_ROLE)
 
         self.source_x_input.valueChanged.connect(self._source_x_input_changed_cb)
         self.source_y_input.valueChanged.connect(self._source_y_input_changed_cb)
@@ -201,7 +207,7 @@ class SourceInspector(QtWidgets.QWidget):
             self._source.pos_y = self.source_y_input.value()
             self.source_params_changed.emit()
 
-    def set_source(self, source: simulation.Source | None) -> None:
+    def set_source(self, source: SimulationSource | None) -> None:
         self._source = source
 
         if source is None:
@@ -254,22 +260,22 @@ class UI(QtWidgets.QMainWindow):
         self.source_inspector_widget = SourceInspector()
         self.object_inspector_widget = ObjectInspector()
         self.status_bar_frame_info = FrameInfoDisplay()
-        self.simulation_state_indicator = SimulationStateIndicator(self.status_bar.height(), simulation.SimulationState.OK)
+        self.simulation_state_indicator = SimulationStateIndicator(self.status_bar.height(), SimulationState.OK)
 
         self.status_bar.addWidget(self.simulation_state_indicator)
         self.status_bar.addWidget(self.status_bar_frame_info)
 
         self.current_selected_simulation_item_id: uuid.UUID | None = None
 
-        self._simulation_sources = dict[uuid.UUID, simulation.Source]()
+        self._simulation_sources = dict[uuid.UUID, SimulationSource]()
         self._source_counter = 0
-        self._simulation_objects = dict[uuid.UUID, simulation.SimulationObject]()
+        self._simulation_objects = dict[uuid.UUID, SimulationObject]()
         self._object_counter = 0
 
         self.axes = self.figure_canvas.figure.add_subplot(1, 1, 1)
-        self.simulation = simulation.Simulation(
-            simulation.DEFAULT_DT,
-            simulation.DEFAULT_DX,
+        self.simulation = Simulation(
+            DEFAULT_DT,
+            DEFAULT_DX,
             500,
             500,
             1e-8,
@@ -534,7 +540,7 @@ class UI(QtWidgets.QMainWindow):
             self.simulation_job.start()
 
         self.simulate_button.set_state(not is_simulation_running)
-        self.simulation_state_indicator.set_state(simulation.SimulationState.RUNNING if not is_simulation_running else simulation.SimulationState.OK)
+        self.simulation_state_indicator.set_state(SimulationState.RUNNING if not is_simulation_running else SimulationState.OK)
 
     @QtCore.pyqtSlot(uuid.UUID)
     def _simulation_scene_selection_cb(self, object_id: uuid.UUID) -> None:
@@ -546,7 +552,7 @@ class UI(QtWidgets.QMainWindow):
         current_tab = self.lists_tab.currentIndex()
         item_id = uuid.uuid4()
         if current_tab == 1:
-            self._simulation_objects[item_id] = simulation.Box(1.0, simulation.MU_0, 250.0, 250.0, 30.0, 30.0)
+            self._simulation_objects[item_id] = Box(1.0, MU_0, 250.0, 250.0, 30.0, 30.0)
 
             list_item = QtWidgets.QListWidgetItem(f'Object {self._object_counter}')
             list_item.setData(DATA_ROLE, item_id)
@@ -554,7 +560,7 @@ class UI(QtWidgets.QMainWindow):
 
             self._object_counter += 1
         elif current_tab == 0:
-            item = simulation.SourceSine(250.0, 250.0, 60e9)
+            item = SineSource(250.0, 250.0, 60e9)
             item.calculate_data(self.simulation._dt, 1000)
 
             self._simulation_sources[item_id] = item

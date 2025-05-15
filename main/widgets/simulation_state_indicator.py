@@ -1,7 +1,7 @@
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtWidgets import QBoxLayout, QFrame
 
-from main.simulation import SimulationState
+from main.simulation.simulation_state import SimulationState
 
 
 class SimulationStateIndicator(QFrame):

@@ -1,11 +1,11 @@
-import abc
-import dataclasses
-import enum
 import typing as t
 
 import numpy as np
-from matplotlib import axes, patches
 from PyQt6 import QtCore
+
+from main.simulation.objects.simulation_object import SimulationObject
+from main.simulation.pml_profile import PMLProfile
+from main.simulation.sources.simulation_source import SimulationSource
 
 MU_0 = 4.0 * np.pi * 1.0e-7
 EPS_0 = 8.854 * 1e-12
@@ -15,95 +15,6 @@ S = 1 / np.sqrt(2)
 
 DEFAULT_DX = 3e-3
 DEFAULT_DT = S * DEFAULT_DX / C
-
-class SimulationState(enum.Enum):
-    OK = enum.auto()
-    ERROR = enum.auto()
-    RUNNING = enum.auto()
-
-@dataclasses.dataclass
-class PMLProfile:
-    data: np.ndarray
-    a: np.ndarray
-    b: np.ndarray
-    c: np.ndarray
-    d: np.ndarray
-
-@dataclasses.dataclass
-class SimulationObject(abc.ABC):
-    permittivity: float
-    permeability: float
-    pos_x: float
-    pos_y: float
-
-    @abc.abstractmethod
-    def draw(self, axes: axes.Axes) -> None:
-        pass
-
-    @abc.abstractmethod
-    def place(self, permittivity_array: np.ndarray, permeability_array: np.ndarray) -> None:
-        pass
-
-    @property
-    def pos_x_int(self) -> int:
-        return int(self.pos_x)
-
-    @property
-    def pos_y_int(self) -> int:
-        return int(self.pos_y)
-
-@dataclasses.dataclass
-class Box(SimulationObject):
-    width: float
-    height: float
-
-    def draw(self, axes: axes.Axes) -> None:
-        axes.add_patch(patches.Rectangle((self.pos_x, self.pos_y), self.width, self.height, fill=False, edgecolor='black'))
-
-    def place(self, permittivity_array: np.ndarray, permeability_array: np.ndarray) -> None:
-        permittivity_array[self.pos_x_int:self.pos_x_int + int(self.width), self.pos_y_int:self.pos_y_int + int(self.height)] = self.permittivity
-        permeability_array[self.pos_x_int:self.pos_x_int + int(self.width), self.pos_y_int:self.pos_y_int + int(self.height)] = self.permeability
-
-    @property
-    def width_int(self) -> int:
-        return int(self.width)
-
-    @property
-    def height_int(self) -> int:
-        return int(self.height)
-
-@dataclasses.dataclass
-class Source(abc.ABC):
-    pos_x: float
-    pos_y: float
-    frequency: float
-    data: np.ndarray = dataclasses.field(init=False)
-
-    @abc.abstractmethod
-    def calculate_data(self, dt: float, time_steps: int) -> None:
-        pass
-
-    @property
-    def pos_x_int(self) -> int:
-        return int(self.pos_x)
-
-    @property
-    def pos_y_int(self) -> int:
-        return int(self.pos_y)
-
-@dataclasses.dataclass
-class SourceSine(Source):
-    length: float = 30.0
-
-    def calculate_data(self, dt: float, time_steps: int) -> None:
-        self.data = np.sin(2 * np.pi * self.frequency * _generate_time_array(self.length, dt, time_steps))
-
-@dataclasses.dataclass
-class SourceCosine(Source):
-    length: float = 30.0
-
-    def calculate_data(self, dt: float, time_steps: int) -> None:
-        self.data = np.sin(2 * np.pi * self.frequency * _generate_time_array(self.length, dt, time_steps))
 
 class Simulation(QtCore.QObject):
     deltas_changed = QtCore.pyqtSignal(float, float)
@@ -217,7 +128,9 @@ class Simulation(QtCore.QObject):
         self._ae = np.ones(grid_size) * self._dt / (self._dx * EPS_0)
         self._am = np.ones(grid_size) * self._dt / (self._dx * MU_0)
 
-    def simulate_frame(self, sources: t.Iterable[Source], objects: t.Iterable[SimulationObject]) -> None:
+    def simulate_frame(self,
+                       sources: t.Iterable[SimulationSource],
+                       objects: t.Iterable[SimulationObject]) -> None:
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -278,5 +191,4 @@ class Simulation(QtCore.QObject):
         self._ae.fill(self._dt / (self._dx * EPS_0))
         self._am.fill(self._dt / (self._dx * MU_0))
 
-def _generate_time_array(l: float, dt: float, time_steps: int) -> np.ndarray:
-    return -np.linspace(-l * dt, l * dt, time_steps)
+
