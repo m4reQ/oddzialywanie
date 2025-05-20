@@ -69,7 +69,7 @@ class Simulation(QtCore.QObject):
 
     @property
     def grid_size(self) -> tuple[int, int]:
-        return self._get_grid_size()
+        return (self._grid_size_x, self._grid_size_y)
 
     @property
     def sources(self) -> dict[uuid.UUID, SimulationSource]:
@@ -115,7 +115,7 @@ class Simulation(QtCore.QObject):
         self._grid_size_x = x
         self._grid_size_y = y
 
-        grid_size = self._get_grid_size()
+        grid_size = self.grid_size
         self._ez.resize(grid_size)
         self._hx.resize(grid_size)
         self._hy.resize(grid_size)
@@ -150,11 +150,12 @@ class Simulation(QtCore.QObject):
     def reset(self) -> None:
         self._current_frame = 0
 
-        grid_size = self._get_grid_size()
+        grid_size = self.grid_size
         self._ez = np.zeros(grid_size)
         self._hx = np.zeros(grid_size)
         self._hy = np.zeros(grid_size)
-        self._needs_allowance_arrays_update = True
+        # we need to immediately update allowance to allow user to see changes after clicking reset
+        self._update_allowance_arrays()
 
     def add_source(self, source: SimulationSource) -> uuid.UUID:
         source.calculate_data(self._dt, 1000)
@@ -206,13 +207,10 @@ class Simulation(QtCore.QObject):
         self._current_frame += 1
 
     def get_simulation_data(self) -> np.ndarray:
-        return self._ez.T
+        return self._ez
 
     def get_pml_data(self) -> np.ndarray:
-        return self._pml_profile.data.T
-
-    def _get_grid_size(self) -> tuple[int, int]:
-        return (self._grid_size_x, self._grid_size_y)
+        return self._pml_profile.data
 
     def _update_simulation_sources(self) -> None:
         for source in self._sources.values():
@@ -228,7 +226,7 @@ class Simulation(QtCore.QObject):
         self.pml_params_changed.emit(self._pml_reflectivity, self._pml_layers, self._pml_order)
 
     def _generate_pml_profile(self) -> PMLProfile:
-        sigma = 4e-4 * np.ones(self._get_grid_size())
+        sigma = 4e-4 * np.ones(self.grid_size)
         sigma_max = -(self._pml_order + 1) * np.log(self._pml_reflectivity) / (2 * ETA * self._pml_layers * self._dx)
         lcp = ((np.arange(1, self._pml_layers + 1) / self._pml_layers) ** self._pml_order) * sigma_max
         lcp_rev = np.flip(lcp)
@@ -246,8 +244,9 @@ class Simulation(QtCore.QObject):
             (self._dt / self._dx) / (EPS_0 + 0.5 * self._dt * sigma))
 
     def _update_allowance_arrays(self) -> None:
-        self._ae.fill(self._dt / (self._dx * EPS_0))
-        self._am.fill(self._dt / (self._dx * MU_0))
+        grid_size = self.grid_size
+        self._ae = np.ones(grid_size) * (self._dt / (self._dx * EPS_0))
+        self._am = np.ones(grid_size) * (self._dt / (self._dx * MU_0))
 
         for obj in self._objects.values():
             obj.place(self._ae, self._am)

@@ -30,7 +30,7 @@
     <property name="spacing">
      <number>7</number>
     </property>
-    <item row="0" column="4" rowspan="3">
+    <item row="0" column="15" rowspan="3">
      <widget class="QFrame" name="unused_6">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
@@ -164,6 +164,19 @@
            <string>Settings</string>
           </attribute>
           <layout class="QGridLayout" name="gridLayout_4">
+           <item row="13" column="1" colspan="2">
+            <widget class="QSpinBox" name="steps_per_render_input">
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>1</number>
+             </property>
+            </widget>
+           </item>
            <item row="11" column="0" colspan="3">
             <widget class="Line" name="unused_17">
              <property name="orientation">
@@ -360,19 +373,6 @@
              </property>
             </widget>
            </item>
-           <item row="14" column="0" colspan="3">
-            <spacer name="unused_16">
-             <property name="orientation">
-              <enum>Qt::Vertical</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>20</width>
-               <height>40</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
            <item row="10" column="1" colspan="2">
             <widget class="QSpinBox" name="pml_order_input">
              <property name="maximum">
@@ -400,35 +400,35 @@
              </property>
             </widget>
            </item>
-           <item row="13" column="1" colspan="2">
-            <widget class="QSpinBox" name="steps_per_render_input">
-             <property name="minimum">
-              <number>1</number>
+           <item row="14" column="0">
+            <widget class="VisibilityCheckbox" name="show_pml_input">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
              </property>
-             <property name="maximum">
-              <number>100</number>
+             <property name="text">
+              <string>Show PML</string>
              </property>
-             <property name="value">
-              <number>1</number>
+            </widget>
+           </item>
+           <item row="15" column="0">
+            <widget class="VisibilityCheckbox" name="show_sources_input">
+             <property name="text">
+              <string>Show sources</string>
+             </property>
+            </widget>
+           </item>
+           <item row="16" column="0">
+            <widget class="VisibilityCheckbox" name="show_objects_input">
+             <property name="text">
+              <string>Show objects</string>
              </property>
             </widget>
            </item>
           </layout>
          </widget>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QCheckBox" name="show_sources_input">
-         <property name="text">
-          <string>Show sources</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QCheckBox" name="show_objects_input">
-         <property name="text">
-          <string>Show objects</string>
-         </property>
         </widget>
        </item>
        <item row="1" column="0">
@@ -459,7 +459,7 @@
       </layout>
      </widget>
     </item>
-    <item row="0" column="0" rowspan="2" colspan="4">
+    <item row="0" column="0" rowspan="2" colspan="15">
      <widget class="QTabWidget" name="simulation_tab">
       <property name="currentIndex">
        <number>0</number>
@@ -493,36 +493,29 @@
        <attribute name="title">
         <string>Sensors</string>
        </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
+         <widget class="QLabel" name="unused_18">
+          <property name="font">
+           <font>
+            <pointsize>20</pointsize>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Not available yet</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
-    <item row="2" column="1">
-     <widget class="QPushButton" name="clear_button">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="text">
-       <string>Clear</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="3">
-     <widget class="QCheckBox" name="show_pml_input">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="text">
-       <string>Show PML</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="2">
+    <item row="2" column="14">
      <widget class="SimulationControlButton" name="simulate_button">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Maximum" vsizetype="Minimum">
@@ -541,9 +534,139 @@
       </property>
      </widget>
     </item>
+    <item row="2" column="13">
+     <widget class="QPushButton" name="clear_button">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Clear</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QLabel" name="_unused">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Current frame:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1">
+     <widget class="QLabel" name="current_frame_label">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>0</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="2">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="3">
+     <widget class="QLabel" name="_unused_2">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Render time:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="4">
+     <widget class="QLabel" name="render_time_label">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>0.0</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="5">
+     <widget class="QLabel" name="_unused_5">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>ms</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="6">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="7">
+     <widget class="QLabel" name="_unused_3">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>Simulation time:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="8">
+     <widget class="QLabel" name="simulation_time_label">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>0.0</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="9">
+     <widget class="QLabel" name="_unused_4">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="text">
+       <string>ms</string>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
-  <widget class="QStatusBar" name="status_bar"/>
  </widget>
  <customwidgets>
   <customwidget>
@@ -561,6 +684,11 @@
    <class>AddSimulationItemButton</class>
    <extends>QToolButton</extends>
    <header>main.widgets.add_simulation_item_button</header>
+  </customwidget>
+  <customwidget>
+   <class>VisibilityCheckbox</class>
+   <extends>QCheckBox</extends>
+   <header>main.widgets.visibility_checkbox</header>
   </customwidget>
  </customwidgets>
  <resources/>

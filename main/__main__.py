@@ -3,6 +3,7 @@ import time
 import uuid
 
 import numpy as np
+from matplotlib.image import AxesImage
 from matplotlib.patches import Circle
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
@@ -16,7 +17,6 @@ from main.simulation.sources.sine_source import SineSource
 from main.simulation_job import SimulationJob
 from main.widgets import mpl_canvas
 from main.widgets.add_simulation_item_button import AddSimulationItemButton
-from main.widgets.frame_info_display import FrameInfoDisplay
 from main.widgets.simulation_control_button import SimulationControlButton
 from main.widgets.simulation_state_indicator import SimulationStateIndicator
 
@@ -214,19 +214,16 @@ class UI(QtWidgets.QMainWindow):
         self.pml_reflectivity_input: QtWidgets.QDoubleSpinBox
         self.pml_layers_input: QtWidgets.QSpinBox
         self.pml_order_input: QtWidgets.QSpinBox
-        self.status_bar: QtWidgets.QStatusBar
         self.show_objects_input: QtWidgets.QCheckBox
         self.show_sources_input: QtWidgets.QCheckBox
         self.show_pml_input: QtWidgets.QCheckBox
         self.inspectors_tab: QtWidgets.QTabWidget
         self.steps_per_render_input: QtWidgets.QSpinBox
+        self.current_frame_label: QtWidgets.QLabel
+        self.simulation_time_label: QtWidgets.QLabel
+        self.render_time_label: QtWidgets.QLabel
         self.source_inspector_widget = SourceInspector()
         self.object_inspector_widget = ObjectInspector()
-        self.status_bar_frame_info = FrameInfoDisplay()
-        self.simulation_state_indicator = SimulationStateIndicator(self.status_bar.height(), SimulationState.OK)
-
-        self.status_bar.addWidget(self.simulation_state_indicator)
-        self.status_bar.addWidget(self.status_bar_frame_info)
 
         self.current_selected_simulation_item_id: uuid.UUID | None = None
 
@@ -235,6 +232,7 @@ class UI(QtWidgets.QMainWindow):
         self._frame_render_time = 0.0
 
         self.axes = self.figure_canvas.figure.add_subplot(1, 1, 1)
+        self.axes_image: AxesImage | None = None
         self.simulation = Simulation(
             DEFAULT_DT,
             DEFAULT_DX,
@@ -358,15 +356,15 @@ class UI(QtWidgets.QMainWindow):
         start = time.perf_counter()
 
         if self.simulation_tab.currentIndex() == 0:
-            self.axes.clear()
-            self.axes.imshow(
-                self.simulation.get_simulation_data(),
-                origin='lower',
-                vmin=-1,
-                vmax=1,
-                cmap='jet')
-
-            # TODO Use axes_image.set_data() with cached axesimage to speed up rendering
+            if self.axes_image is None:
+                self.axes_image = self.axes.imshow(
+                    self.simulation.get_simulation_data(),
+                    origin='lower',
+                    vmin=-1,
+                    vmax=1,
+                    cmap='jet')
+            else:
+                self.axes_image.set_data(self.simulation.get_simulation_data())
 
             if self.show_sources_input.isChecked():
                 for source in self.simulation.sources.values():
@@ -466,8 +464,6 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _show_pml_input_cb(self) -> None:
-        self.axes.clear()
-
         if self.show_pml_input.isChecked():
             self._redraw_pml_canvas()
         else:
@@ -488,10 +484,9 @@ class UI(QtWidgets.QMainWindow):
         if self.simulation.current_frame % self.steps_per_render_input.value() == 0:
             self._frame_render_time = self._redraw_simulation_canvas()
 
-        self.status_bar_frame_info.set_data(
-            self.simulation.current_frame,
-            self._frame_render_time,
-            simulation_time)
+        self.current_frame_label.setText(str(self.simulation.current_frame))
+        self.simulation_time_label.setText(f'{(simulation_time * 1000.0):.1f}')
+        self.render_time_label.setText(f'{(self._frame_render_time * 1000.0):.1f}')
 
         if self.simulation_job is not None:
             self.simulation_job.notify_frame_processed()
@@ -576,7 +571,7 @@ class UI(QtWidgets.QMainWindow):
         self.steps_per_render_input.setEnabled(is_simulation_running)
         self.show_pml_input.setEnabled(is_simulation_running)
         self.simulate_button.set_state(not is_simulation_running)
-        self.simulation_state_indicator.set_state(SimulationState.RUNNING if not is_simulation_running else SimulationState.OK)
+        # self.simulation_state_indicator.set_state(SimulationState.RUNNING if not is_simulation_running else SimulationState.OK)
 
     @QtCore.pyqtSlot(uuid.UUID)
     def _simulation_scene_selection_cb(self, object_id: uuid.UUID) -> None:
