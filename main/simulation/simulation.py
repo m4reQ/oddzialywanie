@@ -1,4 +1,5 @@
 import typing as t
+import uuid
 
 import numpy as np
 from PyQt6 import QtCore
@@ -48,11 +49,34 @@ class Simulation(QtCore.QObject):
         self._am: np.ndarray
         self._pml_profile = self._generate_pml_profile()
 
+        self._sources = dict[uuid.UUID, SimulationSource]()
+        self._objects = dict[uuid.UUID, SimulationObject]()
+
         self.reset()
 
     @property
     def current_frame(self) -> int:
         return self._current_frame
+
+    @property
+    def grid_size_x(self) -> int:
+        return self._grid_size_x
+
+    @property
+    def grid_size_y(self) -> int:
+        return self._grid_size_y
+
+    @property
+    def grid_size(self) -> tuple[int, int]:
+        return (self._grid_size_x, self._grid_size_y)
+
+    @property
+    def sources(self) -> dict[uuid.UUID, SimulationSource]:
+        return self._sources
+
+    @property
+    def objects(self) -> dict[uuid.UUID, SimulationObject]:
+        return self._objects
 
     def emit_params_changed_signal(self) -> None:
         self._emit_pml_params_changed()
@@ -75,6 +99,10 @@ class Simulation(QtCore.QObject):
         self._pml_profile = self._generate_pml_profile()
         self._update_allowance_arrays()
         self._emit_deltas_changed()
+        self._update_simulation_sources()
+
+        for obj in self._objects.values():
+            obj.place(self._ae, self._am)
 
     def set_grid_size(self, x: int | None, y: int | None) -> None:
         if x is None:
@@ -128,9 +156,31 @@ class Simulation(QtCore.QObject):
         self._ae = np.ones(grid_size) * self._dt / (self._dx * EPS_0)
         self._am = np.ones(grid_size) * self._dt / (self._dx * MU_0)
 
-    def simulate_frame(self,
-                       sources: t.Iterable[SimulationSource],
-                       objects: t.Iterable[SimulationObject]) -> None:
+    def add_source(self, source: SimulationSource) -> uuid.UUID:
+        source.calculate_data(self._dt, 1000)
+
+        source_id = uuid.uuid4()
+        self._sources[source_id] = source
+
+        return source_id
+
+    def remove_source(self, source_id: uuid.UUID) -> None:
+        self._sources.pop(source_id, None)
+
+    def remove_object(self, object_id: uuid.UUID) -> None:
+        obj = self._objects.pop(object_id, None)
+        if obj is not None:
+            obj.erase(self._ae, self._am, self._dt / (self._dx * EPS_0), self._dt / (self._dx * MU_0))
+
+    def add_object(self, obj: SimulationObject) -> uuid.UUID:
+        obj.place(self._ae, self._am)
+
+        object_id = uuid.uuid4()
+        self._objects[object_id] = obj
+
+        return object_id
+
+    def simulate_frame(self) -> None:
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -146,11 +196,8 @@ class Simulation(QtCore.QObject):
         self._hx[idx1] = pml_a * self._hx[idx1] - pml_b * self._am[idx1] * (self._ez[n1:n2, n11 + 1:n21 + 1] - self._ez[idx1])
         self._ez[idx2] = self._pml_profile.c[idx2] * self._ez[idx2] + self._pml_profile.d[idx2] * self._ae[idx2] * (self._hy[idx2] - self._hy[n1:n2, n11 + 1:n21 + 1] - self._hx[idx2] + self._hx[n1 + 1:n2 + 1, n11:n21])
 
-        for source in sources:
+        for source in self._sources.values():
             self._ez[source.pos_x_int, source.pos_y_int] = source.data[self._current_frame]
-
-        for obj in objects:
-            obj.place(self._ae, self._am)
 
         self._current_frame += 1
 
@@ -159,6 +206,10 @@ class Simulation(QtCore.QObject):
 
     def get_pml_data(self) -> np.ndarray:
         return self._pml_profile.data.T
+
+    def _update_simulation_sources(self) -> None:
+        for source in self._sources.values():
+            source.calculate_data(self._dt, 1000)
 
     def _emit_deltas_changed(self) -> None:
         self.deltas_changed.emit(self._dx, self._dt)

@@ -17,7 +17,17 @@ class SimulationObject(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def place(self, permittivity_array: np.ndarray, permeability_array: np.ndarray) -> None:
+    def place(self,
+              permittivity_array: np.ndarray,
+              permeability_array: np.ndarray) -> None:
+        pass
+
+    @abc.abstractmethod
+    def erase(self,
+              permittivity_array: np.ndarray,
+              permeability_array: np.ndarray,
+              default_permittivity: float,
+              default_permeability: float) -> None:
         pass
 
     @property

@@ -1,6 +1,5 @@
 import math
 import time
-import typing as t
 import uuid
 
 import numpy as np
@@ -14,7 +13,9 @@ from main.simulation.simulation_state import SimulationState
 from main.simulation.sources.cosine_source import CosineSource
 from main.simulation.sources.simulation_source import SimulationSource
 from main.simulation.sources.sine_source import SineSource
+from main.simulation_job import SimulationJob
 from main.widgets import mpl_canvas
+from main.widgets.add_simulation_item_button import AddSimulationItemButton
 from main.widgets.frame_info_display import FrameInfoDisplay
 from main.widgets.simulation_control_button import SimulationControlButton
 from main.widgets.simulation_state_indicator import SimulationStateIndicator
@@ -23,37 +24,6 @@ MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
 SOURCE_INSPECTOR_UI_FILEPATH = './ui/source_inspector.ui'
 OBJECT_INSPECTOR_UI_FILEPATH = './ui/object_inspector.ui'
 DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
-
-class SimulationJob(QtCore.QThread):
-    frame_ready = QtCore.pyqtSignal(float)
-
-    def __init__(self, simulation: Simulation, sources: t.Iterable[SimulationSource], objects: t.Iterable[SimulationObject]) -> None:
-        super().__init__()
-
-        self.simulation = simulation
-        self.sources = sources
-        self.objects = objects
-        self.is_running = True
-        self.previous_frame_processed = True
-
-    def notify_frame_processed(self) -> None:
-        self.previous_frame_processed = True
-
-    def stop(self) -> None:
-        self.is_running = False
-
-    def run(self) -> None:
-        while self.is_running:
-            if not self.previous_frame_processed:
-                continue
-
-            start = time.perf_counter()
-            self.simulation.simulate_frame(self.sources, self.objects)
-            simulation_time = time.perf_counter() - start
-
-            self.frame_ready.emit(simulation_time)
-
-            self.previous_frame_processed = False
 
 class ObjectInspector(QtWidgets.QWidget):
     object_params_changed = QtCore.pyqtSignal()
@@ -167,21 +137,10 @@ class SourceInspector(QtWidgets.QWidget):
 
         self.source_name_label: QtWidgets.QLabel
         self.source_frequency_input: QtWidgets.QDoubleSpinBox
-        self.source_type_input: QtWidgets.QComboBox
         self.source_x_input: QtWidgets.QDoubleSpinBox
         self.source_y_input: QtWidgets.QDoubleSpinBox
 
         uic.load_ui.loadUi(SOURCE_INSPECTOR_UI_FILEPATH, self)
-
-        self.source_type_to_item_index_map = {
-            SineSource: 0,
-            CosineSource: 1}
-
-        self.source_type_input.addItem(SineSource.__name__)
-        self.source_type_input.setItemData(0, SineSource, DATA_ROLE)
-
-        self.source_type_input.addItem(CosineSource.__name__)
-        self.source_type_input.setItemData(0, CosineSource, DATA_ROLE)
 
         self.source_x_input.valueChanged.connect(self._source_x_input_changed_cb)
         self.source_y_input.valueChanged.connect(self._source_y_input_changed_cb)
@@ -217,7 +176,6 @@ class SourceInspector(QtWidgets.QWidget):
         self.source_frequency_input.setValue(source.frequency)
         self.source_x_input.setValue(source.pos_x)
         self.source_y_input.setValue(source.pos_y)
-        self.source_type_input.setCurrentIndex(self.source_type_to_item_index_map[type(source)])
 
     def set_max_source_pos(self, x: float | None, y: float | None) -> None:
         if x is None:
@@ -237,7 +195,7 @@ class UI(QtWidgets.QMainWindow):
         self.simulation_tab: QtWidgets.QTabWidget
         self.clear_button: QtWidgets.QPushButton
         self.simulate_button: SimulationControlButton
-        self.add_button: QtWidgets.QPushButton
+        self.add_button: AddSimulationItemButton
         self.remove_button: QtWidgets.QPushButton
         self.figure_canvas: mpl_canvas.MPLCanvas
         self.current_inspector_widget: QtWidgets.QWidget
@@ -258,6 +216,7 @@ class UI(QtWidgets.QMainWindow):
         self.show_sources_input: QtWidgets.QCheckBox
         self.show_pml_input: QtWidgets.QCheckBox
         self.inspectors_tab: QtWidgets.QTabWidget
+        self.steps_per_render_input: QtWidgets.QSpinBox
         self.source_inspector_widget = SourceInspector()
         self.object_inspector_widget = ObjectInspector()
         self.status_bar_frame_info = FrameInfoDisplay()
@@ -268,10 +227,9 @@ class UI(QtWidgets.QMainWindow):
 
         self.current_selected_simulation_item_id: uuid.UUID | None = None
 
-        self._simulation_sources = dict[uuid.UUID, SimulationSource]()
         self._source_counter = 0
-        self._simulation_objects = dict[uuid.UUID, SimulationObject]()
         self._object_counter = 0
+        self._frame_render_time = 0.0
 
         self.axes = self.figure_canvas.figure.add_subplot(1, 1, 1)
         self.simulation = Simulation(
@@ -283,6 +241,12 @@ class UI(QtWidgets.QMainWindow):
             25,
             3)
 
+        self.add_button.register_add_callbacks((
+            ('sine', self._add_simulation_source),
+            ('cosine', self._add_simulation_source),
+            ('broadband', self._add_simulation_source),
+            ('gaussian', self._add_simulation_source)))
+
         self.object_inspector_widget.set_simulation_size(self.simulation._grid_size_x, self.simulation._grid_size_y)
         self.source_inspector_widget.set_max_source_pos(self.simulation._grid_size_x, self.simulation._grid_size_y)
 
@@ -293,7 +257,6 @@ class UI(QtWidgets.QMainWindow):
 
         self.simulation_job: SimulationJob | None = None
 
-        self.add_button.clicked.connect(self._add_button_clicked_cb)
         self.remove_button.clicked.connect(self._remove_button_clicked_cb)
         self.simulate_button.clicked.connect(self._simulate_button_clicked_cb)
         self.clear_button.clicked.connect(self._clear_button_clicked_cb)
@@ -311,6 +274,31 @@ class UI(QtWidgets.QMainWindow):
         self.objects_list.itemSelectionChanged.connect(self._objects_list_selection_changed_cb)
         self.source_inspector_widget.source_params_changed.connect(self._source_params_changed_cb)
         self.object_inspector_widget.object_params_changed.connect(self._object_params_changed_cb)
+
+    def _add_simulation_source(self, source_type: str) -> None:
+        source_pos_x = self.simulation.grid_size_x // 2
+        source_pos_y = self.simulation.grid_size_y // 2
+        source_id = uuid.uuid4()
+
+        source: SimulationSource
+        if source_type == 'sine':
+            source = SineSource(source_pos_x, source_pos_y, 60e9)
+        elif source_type == 'cosine':
+            source = CosineSource(source_pos_x, source_pos_y, 60e9)
+        else:
+            print('Invalid source type.')
+            return
+
+        source_id = self.simulation.add_source(source)
+
+        item = QtWidgets.QListWidgetItem(f'Source {self._source_counter + 1}')
+        item.setData(DATA_ROLE, source_id)
+        self.sources_list.addItem(item)
+
+        self._source_counter += 1
+
+        if self.show_sources_input.isChecked():
+            self._redraw_simulation_canvas()
 
     def _stop_current_simulation_job(self) -> None:
         if self.simulation_job is not None:
@@ -349,11 +337,11 @@ class UI(QtWidgets.QMainWindow):
             # TODO Use axes_image.set_data() with cached axesimage to speed up rendering
 
             if self.show_sources_input.isChecked():
-                for source in self._simulation_sources.values():
+                for source in self.simulation.sources.values():
                     self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
 
             if self.show_objects_input.isChecked():
-                for object in self._simulation_objects.values():
+                for object in self.simulation.objects.values():
                     object.draw(self.axes)
 
             self.figure_canvas.draw()
@@ -407,7 +395,7 @@ class UI(QtWidgets.QMainWindow):
         self.current_selected_simulation_item_id = item.data(DATA_ROLE)
         assert isinstance(self.current_selected_simulation_item_id, uuid.UUID)
 
-        self.source_inspector_widget.set_source(self._simulation_sources[self.current_selected_simulation_item_id])
+        self.source_inspector_widget.set_source(self.simulation.sources[self.current_selected_simulation_item_id])
 
         self._change_inspector_widget(self.source_inspector_widget)
 
@@ -420,7 +408,7 @@ class UI(QtWidgets.QMainWindow):
         self.current_selected_simulation_item_id = item.data(DATA_ROLE)
         assert isinstance(self.current_selected_simulation_item_id, uuid.UUID)
 
-        self.object_inspector_widget.set_object(self._simulation_objects[self.current_selected_simulation_item_id])
+        self.object_inspector_widget.set_object(self.simulation.objects[self.current_selected_simulation_item_id])
 
         self._change_inspector_widget(self.object_inspector_widget)
 
@@ -457,11 +445,12 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(float)
     def _simulation_frame_ready_cb(self, simulation_time: float) -> None:
-        render_time = self._redraw_simulation_canvas()
+        if self.simulation.current_frame % self.steps_per_render_input.value() == 0:
+            self._frame_render_time = self._redraw_simulation_canvas()
 
         self.status_bar_frame_info.set_data(
             self.simulation.current_frame,
-            render_time,
+            self._frame_render_time,
             simulation_time)
 
         if self.simulation_job is not None:
@@ -537,13 +526,14 @@ class UI(QtWidgets.QMainWindow):
             self.simulation_job.stop() # type: ignore[union-attr]
             self.simulation_job = None
         else:
-            self.simulation_job = SimulationJob(self.simulation, self._simulation_sources.values(), self._simulation_objects.values())
+            self.simulation_job = SimulationJob(self.simulation)
             self.simulation_job.frame_ready.connect(self._simulation_frame_ready_cb)
             self.simulation_job.start()
 
             self.show_pml_input.setChecked(False)
 
-        self.show_pml_input.setDisabled(not is_simulation_running)
+        self.steps_per_render_input.setEnabled(is_simulation_running)
+        self.show_pml_input.setEnabled(is_simulation_running)
         self.simulate_button.set_state(not is_simulation_running)
         self.simulation_state_indicator.set_state(SimulationState.RUNNING if not is_simulation_running else SimulationState.OK)
 
@@ -551,32 +541,6 @@ class UI(QtWidgets.QMainWindow):
     def _simulation_scene_selection_cb(self, object_id: uuid.UUID) -> None:
         self._select_list_item_by_id(self.sources_list, object_id)
         self._select_list_item_by_id(self.objects_list, object_id)
-
-    @QtCore.pyqtSlot()
-    def _add_button_clicked_cb(self) -> None:
-        current_tab = self.lists_tab.currentIndex()
-        item_id = uuid.uuid4()
-        if current_tab == 1:
-            self._simulation_objects[item_id] = Box(1.0, MU_0, 250.0, 250.0, 30.0, 30.0)
-
-            list_item = QtWidgets.QListWidgetItem(f'Object {self._object_counter}')
-            list_item.setData(DATA_ROLE, item_id)
-            self.objects_list.addItem(list_item)
-
-            self._object_counter += 1
-        elif current_tab == 0:
-            item = SineSource(250.0, 250.0, 60e9)
-            item.calculate_data(self.simulation._dt, 1000)
-
-            self._simulation_sources[item_id] = item
-
-            list_item = QtWidgets.QListWidgetItem(f'Source {self._source_counter}')
-            list_item.setData(DATA_ROLE, item_id)
-            self.sources_list.addItem(list_item)
-
-            self._source_counter += 1
-
-        self._redraw_simulation_canvas()
 
     @QtCore.pyqtSlot()
     def _remove_button_clicked_cb(self) -> None:
@@ -587,16 +551,14 @@ class UI(QtWidgets.QMainWindow):
                 item_id = current_item.data(DATA_ROLE)
                 assert isinstance(item_id, uuid.UUID)
 
-                self.sources_list.takeItem(self.sources_list.row(current_item))
-                self._simulation_sources.pop(item_id)
+                self.simulation.remove_source(item_id)
         elif current_tab == 1:
             current_item = self.objects_list.currentItem()
             if current_item is not None:
                 item_id = current_item.data(DATA_ROLE)
                 assert isinstance(item_id, uuid.UUID)
 
-                self.objects_list.takeItem(self.objects_list.row(current_item))
-                self._simulation_objects.pop(item_id)
+                self.simulation.remove_object(item_id)
 
         self._redraw_simulation_canvas()
 
