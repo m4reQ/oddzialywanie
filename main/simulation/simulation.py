@@ -48,6 +48,7 @@ class Simulation(QtCore.QObject):
         self._ae: np.ndarray
         self._am: np.ndarray
         self._pml_profile = self._generate_pml_profile()
+        self._needs_allowance_arrays_update = True
 
         self._sources = dict[uuid.UUID, SimulationSource]()
         self._objects = dict[uuid.UUID, SimulationObject]()
@@ -68,7 +69,7 @@ class Simulation(QtCore.QObject):
 
     @property
     def grid_size(self) -> tuple[int, int]:
-        return (self._grid_size_x, self._grid_size_y)
+        return self._get_grid_size()
 
     @property
     def sources(self) -> dict[uuid.UUID, SimulationSource]:
@@ -90,14 +91,14 @@ class Simulation(QtCore.QObject):
             self._dt = S * self._dx / C
 
         self._pml_profile = self._generate_pml_profile()
-        self._update_allowance_arrays()
+        self._needs_allowance_arrays_update = True
         self._emit_deltas_changed()
 
     def set_dt(self, dt: float) -> None:
         self._dt = dt
 
         self._pml_profile = self._generate_pml_profile()
-        self._update_allowance_arrays()
+        self._needs_allowance_arrays_update = True
         self._emit_deltas_changed()
         self._update_simulation_sources()
 
@@ -114,14 +115,14 @@ class Simulation(QtCore.QObject):
         self._grid_size_x = x
         self._grid_size_y = y
 
-        grid_size = (self._grid_size_x, self._grid_size_y)
+        grid_size = self._get_grid_size()
         self._ez.resize(grid_size)
         self._hx.resize(grid_size)
         self._hy.resize(grid_size)
         self._ae.resize(grid_size)
         self._am.resize(grid_size)
 
-        self._update_allowance_arrays()
+        self._needs_allowance_arrays_update = True
         self._emit_grid_size_changed()
 
     def set_pml_params(self,
@@ -149,12 +150,11 @@ class Simulation(QtCore.QObject):
     def reset(self) -> None:
         self._current_frame = 0
 
-        grid_size = (self._grid_size_x, self._grid_size_y)
+        grid_size = self._get_grid_size()
         self._ez = np.zeros(grid_size)
         self._hx = np.zeros(grid_size)
         self._hy = np.zeros(grid_size)
-        self._ae = np.ones(grid_size) * self._dt / (self._dx * EPS_0)
-        self._am = np.ones(grid_size) * self._dt / (self._dx * MU_0)
+        self._needs_allowance_arrays_update = True
 
     def add_source(self, source: SimulationSource) -> uuid.UUID:
         source.calculate_data(self._dt, 1000)
@@ -173,7 +173,7 @@ class Simulation(QtCore.QObject):
             obj.erase(self._ae, self._am, self._dt / (self._dx * EPS_0), self._dt / (self._dx * MU_0))
 
     def add_object(self, obj: SimulationObject) -> uuid.UUID:
-        obj.place(self._ae, self._am)
+        self._needs_allowance_arrays_update = True
 
         object_id = uuid.uuid4()
         self._objects[object_id] = obj
@@ -181,6 +181,10 @@ class Simulation(QtCore.QObject):
         return object_id
 
     def simulate_frame(self) -> None:
+        if self._needs_allowance_arrays_update:
+            self._update_allowance_arrays()
+            self._needs_allowance_arrays_update = False
+
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -207,6 +211,9 @@ class Simulation(QtCore.QObject):
     def get_pml_data(self) -> np.ndarray:
         return self._pml_profile.data.T
 
+    def _get_grid_size(self) -> tuple[int, int]:
+        return (self._grid_size_x, self._grid_size_y)
+
     def _update_simulation_sources(self) -> None:
         for source in self._sources.values():
             source.calculate_data(self._dt, 1000)
@@ -221,7 +228,7 @@ class Simulation(QtCore.QObject):
         self.pml_params_changed.emit(self._pml_reflectivity, self._pml_layers, self._pml_order)
 
     def _generate_pml_profile(self) -> PMLProfile:
-        sigma = 4e-4 * np.ones((self._grid_size_x, self._grid_size_y))
+        sigma = 4e-4 * np.ones(self._get_grid_size())
         sigma_max = -(self._pml_order + 1) * np.log(self._pml_reflectivity) / (2 * ETA * self._pml_layers * self._dx)
         lcp = ((np.arange(1, self._pml_layers + 1) / self._pml_layers) ** self._pml_order) * sigma_max
         lcp_rev = np.flip(lcp)
@@ -242,4 +249,5 @@ class Simulation(QtCore.QObject):
         self._ae.fill(self._dt / (self._dx * EPS_0))
         self._am.fill(self._dt / (self._dx * MU_0))
 
-
+        for obj in self._objects.values():
+            obj.place(self._ae, self._am)

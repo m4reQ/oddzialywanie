@@ -24,6 +24,9 @@ MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
 SOURCE_INSPECTOR_UI_FILEPATH = './ui/source_inspector.ui'
 OBJECT_INSPECTOR_UI_FILEPATH = './ui/object_inspector.ui'
 DATA_ROLE = QtCore.Qt.ItemDataRole.UserRole + 2137
+DEFAULT_BOX_SIZE = 30.0
+SOURCES_LIST_TAB_INDEX = 0
+OBJECTS_LIST_TAB_INDEX = 1
 
 class ObjectInspector(QtWidgets.QWidget):
     object_params_changed = QtCore.pyqtSignal()
@@ -241,11 +244,7 @@ class UI(QtWidgets.QMainWindow):
             25,
             3)
 
-        self.add_button.register_add_callbacks((
-            ('sine', self._add_simulation_source),
-            ('cosine', self._add_simulation_source),
-            ('broadband', self._add_simulation_source),
-            ('gaussian', self._add_simulation_source)))
+        self._register_add_source_callbacks()
 
         self.object_inspector_widget.set_simulation_size(self.simulation._grid_size_x, self.simulation._grid_size_y)
         self.source_inspector_widget.set_max_source_pos(self.simulation._grid_size_x, self.simulation._grid_size_y)
@@ -257,6 +256,7 @@ class UI(QtWidgets.QMainWindow):
 
         self.simulation_job: SimulationJob | None = None
 
+        self.lists_tab.currentChanged.connect(self._simulation_items_list_changed_cb)
         self.remove_button.clicked.connect(self._remove_button_clicked_cb)
         self.simulate_button.clicked.connect(self._simulate_button_clicked_cb)
         self.clear_button.clicked.connect(self._clear_button_clicked_cb)
@@ -275,20 +275,52 @@ class UI(QtWidgets.QMainWindow):
         self.source_inspector_widget.source_params_changed.connect(self._source_params_changed_cb)
         self.object_inspector_widget.object_params_changed.connect(self._object_params_changed_cb)
 
-    def _add_simulation_source(self, source_type: str) -> None:
-        source_pos_x = self.simulation.grid_size_x // 2
-        source_pos_y = self.simulation.grid_size_y // 2
-        source_id = uuid.uuid4()
+    def _register_add_source_callbacks(self) -> None:
+        self.add_button.register_add_callbacks((
+            ('sine', self._add_simulation_source),
+            ('cosine', self._add_simulation_source)))
 
-        source: SimulationSource
+    def _register_add_object_callbacks(self) -> None:
+        self.add_button.register_add_callbacks((
+            ('box', self._add_simulation_object),))
+
+    def _create_simulation_object(self, object_type: str, pos_x: int, pos_y: int) -> SimulationObject:
+        if object_type == 'box':
+            return Box(1.0, MU_0, pos_x, pos_y, DEFAULT_BOX_SIZE, DEFAULT_BOX_SIZE)
+
+        raise ValueError(f'Invalid simulation object type: {object_type}')
+
+    def _add_simulation_object(self, object_type: str) -> None:
+        obj_id = self.simulation.add_object(
+            self._create_simulation_object(
+                object_type,
+                *self._get_simulation_center_pos()))
+
+
+        item = QtWidgets.QListWidgetItem(f'Object {self._object_counter + 1}')
+        item.setData(DATA_ROLE, obj_id)
+        self.objects_list.addItem(item)
+
+        self._object_counter += 1
+
+        if self.show_objects_input.isChecked():
+            self._redraw_simulation_canvas()
+
+    def _get_simulation_center_pos(self) -> tuple[int, int]:
+        return (self.simulation.grid_size_x // 2,
+                self.simulation.grid_size_y // 2)
+
+    def _create_simulation_source(self, source_type: str, pos_x: int, pos_y: int) -> SimulationSource:
         if source_type == 'sine':
-            source = SineSource(source_pos_x, source_pos_y, 60e9)
+            return SineSource(pos_x, pos_y, 60e9)
         elif source_type == 'cosine':
-            source = CosineSource(source_pos_x, source_pos_y, 60e9)
-        else:
-            print('Invalid source type.')
-            return
+            return CosineSource(pos_x, pos_y, 60e9)
 
+        raise ValueError(f'Invalid simulation source type: {source_type}')
+
+    def _add_simulation_source(self, source_type: str) -> None:
+        pos_x, pos_y = self._get_simulation_center_pos()
+        source = self._create_simulation_source(source_type, pos_x, pos_y)
         source_id = self.simulation.add_source(source)
 
         item = QtWidgets.QListWidgetItem(f'Source {self._source_counter + 1}')
@@ -375,6 +407,14 @@ class UI(QtWidgets.QMainWindow):
 
         if event is not None:
             self.figure_canvas.figure.tight_layout(pad=1)
+
+    @QtCore.pyqtSlot()
+    def _simulation_items_list_changed_cb(self) -> None:
+        index = self.lists_tab.currentIndex()
+        if index == SOURCES_LIST_TAB_INDEX:
+            self._register_add_source_callbacks()
+        elif index == OBJECTS_LIST_TAB_INDEX:
+            self._register_add_object_callbacks()
 
     @QtCore.pyqtSlot()
     def _object_params_changed_cb(self) -> None:
@@ -532,6 +572,7 @@ class UI(QtWidgets.QMainWindow):
 
             self.show_pml_input.setChecked(False)
 
+        self.clear_button.setEnabled(is_simulation_running)
         self.steps_per_render_input.setEnabled(is_simulation_running)
         self.show_pml_input.setEnabled(is_simulation_running)
         self.simulate_button.set_state(not is_simulation_running)
@@ -545,14 +586,14 @@ class UI(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def _remove_button_clicked_cb(self) -> None:
         current_tab = self.lists_tab.currentIndex()
-        if current_tab == 0:
+        if current_tab == SOURCES_LIST_TAB_INDEX:
             current_item = self.sources_list.currentItem()
             if current_item is not None:
                 item_id = current_item.data(DATA_ROLE)
                 assert isinstance(item_id, uuid.UUID)
 
                 self.simulation.remove_source(item_id)
-        elif current_tab == 1:
+        elif current_tab == OBJECTS_LIST_TAB_INDEX:
             current_item = self.objects_list.currentItem()
             if current_item is not None:
                 item_id = current_item.data(DATA_ROLE)
