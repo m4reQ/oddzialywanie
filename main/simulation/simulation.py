@@ -49,6 +49,8 @@ class Simulation(QtCore.QObject):
         self._am: np.ndarray
         self._pml_profile = self._generate_pml_profile()
         self._needs_allowance_arrays_update = True
+        self._sources_to_update = set[uuid.UUID]()
+        self._objects_to_update = set[uuid.UUID]()
 
         self._sources = dict[uuid.UUID, SimulationSource]()
         self._objects = dict[uuid.UUID, SimulationObject]()
@@ -165,6 +167,12 @@ class Simulation(QtCore.QObject):
 
         return source_id
 
+    def update_source(self, source_id: uuid.UUID) -> None:
+        self._sources_to_update.add(source_id)
+
+    def update_object(self, object_id: uuid.UUID) -> None:
+        self._objects_to_update.add(object_id)
+
     def remove_source(self, source_id: uuid.UUID) -> None:
         self._sources.pop(source_id, None)
 
@@ -186,6 +194,20 @@ class Simulation(QtCore.QObject):
             self._update_allowance_arrays()
             self._needs_allowance_arrays_update = False
 
+        for source_id in self._sources_to_update:
+            source = self._sources.get(source_id, None)
+            if source is not None:
+                source.calculate_data(self._dt, 1000)
+
+        for object_id in self._objects_to_update:
+            object = self._objects.get(object_id, None)
+            if object is not None:
+                object.erase(self._ae, self._am, self._dt / (self._dx * EPS_0), self._dt / (self._dx * MU_0))
+                object.place(self._ae, self._am)
+
+        self._sources_to_update.clear()
+        self._objects_to_update.clear()
+
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -202,7 +224,7 @@ class Simulation(QtCore.QObject):
         self._ez[idx2] = self._pml_profile.c[idx2] * self._ez[idx2] + self._pml_profile.d[idx2] * self._ae[idx2] * (self._hy[idx2] - self._hy[n1:n2, n11 + 1:n21 + 1] - self._hx[idx2] + self._hx[n1 + 1:n2 + 1, n11:n21])
 
         for source in self._sources.values():
-            self._ez[source.pos_x_int, source.pos_y_int] = source.data[self._current_frame]
+            self._ez[source.pos_y_int, source.pos_x_int] = source.data[self._current_frame]
 
         self._current_frame += 1
 

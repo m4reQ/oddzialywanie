@@ -136,7 +136,7 @@ class UI(QtWidgets.QMainWindow):
         self._object_counter += 1
 
         if self.show_objects_input.isChecked():
-            self._redraw_simulation_canvas()
+            self._redraw_simulation_canvas(True)
 
     def _get_simulation_center_pos(self) -> tuple[int, int]:
         return (self.simulation.grid_size_x // 2,
@@ -186,17 +186,21 @@ class UI(QtWidgets.QMainWindow):
 
         self.current_inspector_widget = new_widget
 
-    def _redraw_simulation_canvas(self) -> float:
+    def _redraw_simulation_canvas_full(self) -> None:
+        self.axes.clear()
+        self.axes_image = self.axes.imshow(
+            self.simulation.get_simulation_data(),
+            origin='lower',
+            vmin=-1,
+            vmax=1,
+            cmap='jet')
+
+    def _redraw_simulation_canvas(self, do_full_redraw: bool = False) -> float:
         start = time.perf_counter()
 
         if self.simulation_tab.currentIndex() == 0:
-            if self.axes_image is None:
-                self.axes_image = self.axes.imshow(
-                    self.simulation.get_simulation_data(),
-                    origin='lower',
-                    vmin=-1,
-                    vmax=1,
-                    cmap='jet')
+            if self.axes_image is None or do_full_redraw:
+                self._redraw_simulation_canvas_full()
             else:
                 self.axes_image.set_data(self.simulation.get_simulation_data())
 
@@ -251,12 +255,22 @@ class UI(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def _object_params_changed_cb(self) -> None:
         if not self.show_pml_input.isChecked() and self.show_objects_input.isChecked():
-            self._redraw_simulation_canvas()
+            self._redraw_simulation_canvas(True)
+
+        item = self.objects_list.currentItem()
+        if item is not None:
+            object_id: uuid.UUID = item.data(DATA_ROLE)
+            self.simulation.update_object(object_id)
 
     @QtCore.pyqtSlot()
     def _source_params_changed_cb(self) -> None:
         if not self.show_pml_input.isChecked() and self.show_sources_input.isChecked():
-            self._redraw_simulation_canvas()
+            self._redraw_simulation_canvas(True)
+
+        item = self.sources_list.currentItem()
+        if item is not None:
+            source_id: uuid.UUID = item.data(DATA_ROLE)
+            self.simulation.update_source(source_id)
 
     @QtCore.pyqtSlot()
     def _sources_list_selection_changed_cb(self) -> None:
@@ -305,7 +319,7 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _show_checkbox_changed_cb(self) -> None:
-        self._redraw_simulation_canvas()
+        self._redraw_simulation_canvas(True)
 
     @QtCore.pyqtSlot()
     def _clear_button_clicked_cb(self) -> None:
