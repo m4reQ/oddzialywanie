@@ -26,3 +26,11 @@ class SimulationSource(abc.ABC):
     @property
     def pos_y_int(self) -> int:
         return int(self.pos_y)
+
+    @property
+    def pos(self) -> tuple[float, float]:
+        return (self.pos_x, self.pos_y)
+
+    @property
+    def pos_int(self) -> tuple[int, int]:
+        return (int(self.pos_x), int(self.pos_y))

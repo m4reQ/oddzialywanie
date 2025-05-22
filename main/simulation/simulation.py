@@ -1,4 +1,4 @@
-import typing as t
+import time
 import uuid
 
 import numpy as np
@@ -41,6 +41,7 @@ class Simulation(QtCore.QObject):
         self._pml_order = pml_order
 
         self._current_frame = 0
+        self._simulation_time = 0.0
 
         self._ez: np.ndarray
         self._hx: np.ndarray
@@ -80,6 +81,14 @@ class Simulation(QtCore.QObject):
     @property
     def objects(self) -> dict[uuid.UUID, SimulationObject]:
         return self._objects
+
+    @property
+    def simulation_time(self) -> float:
+        return self._simulation_time
+
+    @property
+    def simulation_time_ms(self) -> float:
+        return self._simulation_time * 1000.0
 
     def emit_params_changed_signal(self) -> None:
         self._emit_pml_params_changed()
@@ -190,6 +199,8 @@ class Simulation(QtCore.QObject):
         return object_id
 
     def simulate_frame(self) -> None:
+        start = time.perf_counter()
+
         if self._needs_allowance_arrays_update:
             self._update_allowance_arrays()
             self._needs_allowance_arrays_update = False
@@ -227,6 +238,7 @@ class Simulation(QtCore.QObject):
             self._ez[source.pos_y_int, source.pos_x_int] = source.data[self._current_frame]
 
         self._current_frame += 1
+        self._simulation_time = time.perf_counter() - start
 
     def get_simulation_data(self) -> np.ndarray:
         return self._ez

@@ -1,9 +1,6 @@
 import math
-import time
 import uuid
 
-from matplotlib.image import AxesImage
-from matplotlib.patches import Circle
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
 from main.simulation.objects.box import Box
@@ -13,10 +10,11 @@ from main.simulation.sources.cosine_source import CosineSource
 from main.simulation.sources.simulation_source import SimulationSource
 from main.simulation.sources.sine_source import SineSource
 from main.simulation_job import SimulationJob
-from main.widgets import mpl_canvas
 from main.widgets.add_simulation_item_button import AddSimulationItemButton
 from main.widgets.object_inspector import ObjectInspector
+from main.widgets.sensor_view import SensorView
 from main.widgets.simulation_control_button import SimulationControlButton
+from main.widgets.simulation_render_area import SimulationRenderArea
 from main.widgets.source_inspector import SourceInspector
 
 MAIN_WINDOW_UI_FILEPATH = './ui/main_window.ui'
@@ -30,12 +28,13 @@ class UI(QtWidgets.QMainWindow):
         super().__init__()
         uic.load_ui.loadUi(MAIN_WINDOW_UI_FILEPATH, self)
 
+        self.add_sensor_button: QtWidgets.QPushButton
         self.simulation_tab: QtWidgets.QTabWidget
         self.clear_button: QtWidgets.QPushButton
         self.simulate_button: SimulationControlButton
         self.add_button: AddSimulationItemButton
         self.remove_button: QtWidgets.QPushButton
-        self.figure_canvas: mpl_canvas.MPLCanvas
+        self.simulation_render_area: SimulationRenderArea
         self.current_inspector_widget: QtWidgets.QWidget
         self.inspector_tab: QtWidgets.QWidget
         self.sources_list: QtWidgets.QListWidget
@@ -57,17 +56,23 @@ class UI(QtWidgets.QMainWindow):
         self.current_frame_label: QtWidgets.QLabel
         self.simulation_time_label: QtWidgets.QLabel
         self.render_time_label: QtWidgets.QLabel
+        self.sensors_area_content: QtWidgets.QWidget
+        self.show_sensors_input: QtWidgets.QCheckBox
         self.source_inspector_widget = SourceInspector()
         self.object_inspector_widget = ObjectInspector()
+
+        self.sensors_area_layout = self.sensors_area_content.layout()
+        assert isinstance(self.sensors_area_layout, QtWidgets.QVBoxLayout)
+        self.sensors_area_layout.setDirection(QtWidgets.QBoxLayout.Direction.BottomToTop)
 
         self.current_selected_simulation_item_id: uuid.UUID | None = None
 
         self._source_counter = 0
         self._object_counter = 0
-        self._frame_render_time = 0.0
+        self._sensor_counter = 0
 
-        self.axes = self.figure_canvas.figure.add_subplot(1, 1, 1)
-        self.axes_image: AxesImage | None = None
+        self._sensors = list[SensorView]()
+
         self.simulation = Simulation(
             DEFAULT_DT,
             DEFAULT_DX,
@@ -76,6 +81,7 @@ class UI(QtWidgets.QMainWindow):
             1e-8,
             25,
             3)
+        self.simulation_render_area.simulation = self.simulation
 
         self._register_add_source_callbacks()
 
@@ -89,6 +95,7 @@ class UI(QtWidgets.QMainWindow):
 
         self.simulation_job: SimulationJob | None = None
 
+        self.add_sensor_button.clicked.connect(self._add_sensor_button_clicked_cb)
         self.lists_tab.currentChanged.connect(self._simulation_items_list_changed_cb)
         self.remove_button.clicked.connect(self._remove_button_clicked_cb)
         self.simulate_button.clicked.connect(self._simulate_button_clicked_cb)
@@ -100,8 +107,8 @@ class UI(QtWidgets.QMainWindow):
         self.pml_order_input.valueChanged.connect(self._pml_order_input_changed_cb)
         self.grid_size_x_input.valueChanged.connect(self._grid_size_x_input_changed_cb)
         self.grid_size_y_input.valueChanged.connect(self._grid_size_y_input_changed_cb)
-        self.show_objects_input.checkStateChanged.connect(self._show_checkbox_changed_cb)
-        self.show_sources_input.checkStateChanged.connect(self._show_checkbox_changed_cb)
+        self.show_objects_input.checkStateChanged.connect(self._show_objects_checkbox_changed_cb)
+        self.show_sources_input.checkStateChanged.connect(self._show_sources_checkbox_changed_cb)
         self.show_pml_input.checkStateChanged.connect(self._show_pml_input_cb)
         self.sources_list.itemSelectionChanged.connect(self._sources_list_selection_changed_cb)
         self.objects_list.itemSelectionChanged.connect(self._objects_list_selection_changed_cb)
@@ -135,8 +142,8 @@ class UI(QtWidgets.QMainWindow):
 
         self._object_counter += 1
 
-        if self.show_objects_input.isChecked():
-            self._redraw_simulation_canvas(True)
+        if self.simulation_render_area.show_objects and self.simulation_render_area.draw_simulation:
+            self.simulation_render_area.draw()
 
     def _get_simulation_center_pos(self) -> tuple[int, int]:
         return (self.simulation.grid_size_x // 2,
@@ -161,18 +168,8 @@ class UI(QtWidgets.QMainWindow):
 
         self._source_counter += 1
 
-        if self.show_sources_input.isChecked():
-            self._redraw_simulation_canvas()
-
-    def _stop_current_simulation_job(self) -> None:
-        if self.simulation_job is not None:
-            self.simulation_job.stop()
-            self.simulation_job = None
-
-    def _redraw_pml_canvas(self) -> None:
-        self.axes.imshow(self.simulation.get_pml_data(), origin='lower', cmap='viridis', aspect='auto')
-
-        self.figure_canvas.draw()
+        if self.simulation_render_area.show_sources and self.simulation_render_area.draw_simulation:
+            self.simulation_render_area.draw()
 
     def _change_inspector_widget(self, new_widget: QtWidgets.QWidget) -> None:
         tab_layout = self.inspector_tab.layout()
@@ -185,36 +182,6 @@ class UI(QtWidgets.QMainWindow):
         new_widget.show()
 
         self.current_inspector_widget = new_widget
-
-    def _redraw_simulation_canvas_full(self) -> None:
-        self.axes.clear()
-        self.axes_image = self.axes.imshow(
-            self.simulation.get_simulation_data(),
-            origin='lower',
-            vmin=-1,
-            vmax=1,
-            cmap='jet')
-
-    def _redraw_simulation_canvas(self, do_full_redraw: bool = False) -> float:
-        start = time.perf_counter()
-
-        if self.simulation_tab.currentIndex() == 0:
-            if self.axes_image is None or do_full_redraw:
-                self._redraw_simulation_canvas_full()
-            else:
-                self.axes_image.set_data(self.simulation.get_simulation_data())
-
-            if self.show_sources_input.isChecked():
-                for source in self.simulation.sources.values():
-                    self.axes.add_patch(Circle((source.pos_x, source.pos_y), 2.0, color='red'))
-
-            if self.show_objects_input.isChecked():
-                for object in self.simulation.objects.values():
-                    object.draw(self.axes)
-
-            self.figure_canvas.draw()
-
-        return time.perf_counter() - start
 
     def _select_list_item_by_id(self, _list: QtWidgets.QListWidget, object_id: uuid.UUID) -> None:
         for i in range(_list.count()):
@@ -242,7 +209,18 @@ class UI(QtWidgets.QMainWindow):
         super().resizeEvent(event)
 
         if event is not None:
-            self.figure_canvas.figure.tight_layout(pad=1)
+            self.simulation_render_area.figure.tight_layout(pad=1)
+
+    @QtCore.pyqtSlot()
+    def _add_sensor_button_clicked_cb(self) -> None:
+        assert self.sensors_area_layout is not None
+
+        widget = SensorView(f'Sensor {self._sensor_counter}')
+        self.sensors_area_layout.addWidget(widget)
+        widget.show()
+        self.sensors_area_layout.update()
+
+        self._sensor_counter += 1
 
     @QtCore.pyqtSlot()
     def _simulation_items_list_changed_cb(self) -> None:
@@ -254,23 +232,23 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _object_params_changed_cb(self) -> None:
-        if not self.show_pml_input.isChecked() and self.show_objects_input.isChecked():
-            self._redraw_simulation_canvas(True)
-
         item = self.objects_list.currentItem()
         if item is not None:
             object_id: uuid.UUID = item.data(DATA_ROLE)
             self.simulation.update_object(object_id)
 
+        if self.simulation_render_area.show_objects and self.simulation_render_area.draw_simulation:
+            self.simulation_render_area.draw(do_full_redraw=True)
+
     @QtCore.pyqtSlot()
     def _source_params_changed_cb(self) -> None:
-        if not self.show_pml_input.isChecked() and self.show_sources_input.isChecked():
-            self._redraw_simulation_canvas(True)
-
         item = self.sources_list.currentItem()
         if item is not None:
             source_id: uuid.UUID = item.data(DATA_ROLE)
             self.simulation.update_source(source_id)
+
+        if self.simulation_render_area.show_sources and self.simulation_render_area.draw_simulation:
+            self.simulation_render_area.draw(do_full_redraw=True)
 
     @QtCore.pyqtSlot()
     def _sources_list_selection_changed_cb(self) -> None:
@@ -312,29 +290,32 @@ class UI(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _show_pml_input_cb(self) -> None:
-        if self.show_pml_input.isChecked():
-            self._redraw_pml_canvas()
-        else:
-            self._redraw_simulation_canvas()
+        self.simulation_render_area.draw_pml = self.show_pml_input.isChecked()
+        self.simulation_render_area.draw(do_full_redraw=True)
 
     @QtCore.pyqtSlot()
-    def _show_checkbox_changed_cb(self) -> None:
-        self._redraw_simulation_canvas(True)
+    def _show_sources_checkbox_changed_cb(self) -> None:
+        self.simulation_render_area.show_sources = self.show_sources_input.isChecked()
+        self.simulation_render_area.draw(do_full_redraw=True)
+
+    @QtCore.pyqtSlot()
+    def _show_objects_checkbox_changed_cb(self) -> None:
+        self.simulation_render_area.show_objects = self.show_objects_input.isChecked()
+        self.simulation_render_area.draw(do_full_redraw=True)
 
     @QtCore.pyqtSlot()
     def _clear_button_clicked_cb(self) -> None:
-        self._stop_current_simulation_job()
         self.simulation.reset()
-        self._redraw_simulation_canvas()
+        self.simulation_render_area.draw()
 
-    @QtCore.pyqtSlot(float)
-    def _simulation_frame_ready_cb(self, simulation_time: float) -> None:
+    @QtCore.pyqtSlot()
+    def _simulation_frame_ready_cb(self) -> None:
         if self.simulation.current_frame % self.steps_per_render_input.value() == 0:
-            self._frame_render_time = self._redraw_simulation_canvas()
+            self.simulation_render_area.draw()
 
         self.current_frame_label.setText(str(self.simulation.current_frame))
-        self.simulation_time_label.setText(f'{(simulation_time * 1000.0):.1f}')
-        self.render_time_label.setText(f'{(self._frame_render_time * 1000.0):.1f}')
+        self.simulation_time_label.setText(f'{self.simulation.simulation_time_ms:.1f}')
+        self.render_time_label.setText(f'{self.simulation_render_area.draw_time_ms:.1f}')
 
         if self.simulation_job is not None:
             self.simulation_job.notify_frame_processed()
@@ -350,7 +331,7 @@ class UI(QtWidgets.QMainWindow):
         self.grid_size_y_input.setValue(y)
         self.pml_layers_input.setMaximum(math.floor(min(x, y) / 2))
 
-        self._redraw_simulation_canvas()
+        self.simulation_render_area.draw()
 
     @QtCore.pyqtSlot(float, int, int)
     def _sim_pml_params_changed(self, reflectivity: float, layers: int, order: int) -> None:
@@ -358,8 +339,7 @@ class UI(QtWidgets.QMainWindow):
         self.pml_layers_input.setValue(layers)
         self.pml_order_input.setValue(order)
 
-        if self.show_pml_input.isChecked():
-            self._redraw_pml_canvas()
+        self.simulation_render_area.draw()
 
     @QtCore.pyqtSlot()
     def _dx_input_changed(self) -> None:
@@ -445,7 +425,7 @@ class UI(QtWidgets.QMainWindow):
                 self.simulation.remove_object(item_id)
                 self.objects_list.takeItem(self.objects_list.row(current_item))
 
-        self._redraw_simulation_canvas()
+        self.simulation_render_area.draw()
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])

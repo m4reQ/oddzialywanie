@@ -184,8 +184,8 @@
              </property>
             </widget>
            </item>
-           <item row="0" column="0">
-            <widget class="QLabel" name="unused">
+           <item row="1" column="0">
+            <widget class="QLabel" name="unused_2">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -193,7 +193,7 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>dx</string>
+              <string>dt</string>
              </property>
             </widget>
            </item>
@@ -207,19 +207,6 @@
              </property>
              <property name="singleStep">
               <double>0.001000000000000</double>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QCheckBox" name="dt_auto_input">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="text">
-              <string>Auto</string>
              </property>
             </widget>
            </item>
@@ -239,8 +226,8 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="unused_2">
+           <item row="0" column="0">
+            <widget class="QLabel" name="unused">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
                <horstretch>0</horstretch>
@@ -248,28 +235,20 @@
               </sizepolicy>
              </property>
              <property name="text">
-              <string>dt</string>
+              <string>dx</string>
              </property>
             </widget>
            </item>
-           <item row="2" column="0" colspan="3">
-            <widget class="Line" name="unused_14">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
+           <item row="1" column="2">
+            <widget class="QCheckBox" name="dt_auto_input">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
              </property>
-            </widget>
-           </item>
-           <item row="4" column="0">
-            <widget class="QLabel" name="unused_5">
              <property name="text">
-              <string>X</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="0">
-            <widget class="QLabel" name="unused_8">
-             <property name="text">
-              <string>Y</string>
+              <string>Auto</string>
              </property>
             </widget>
            </item>
@@ -287,6 +266,27 @@
              </property>
             </widget>
            </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="unused_8">
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="3">
+            <widget class="Line" name="unused_14">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="unused_5">
+             <property name="text">
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
            <item row="6" column="0" colspan="3">
             <widget class="Line" name="unused_15">
              <property name="orientation">
@@ -298,6 +298,13 @@
             <widget class="QSpinBox" name="grid_size_y_input">
              <property name="maximum">
               <number>10000</number>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QLabel" name="unused_13">
+             <property name="text">
+              <string>Grading order</string>
              </property>
             </widget>
            </item>
@@ -327,13 +334,6 @@
              </property>
             </widget>
            </item>
-           <item row="10" column="0">
-            <widget class="QLabel" name="unused_13">
-             <property name="text">
-              <string>Grading order</string>
-             </property>
-            </widget>
-           </item>
            <item row="7" column="0" colspan="3">
             <widget class="QLabel" name="unused_10">
              <property name="sizePolicy">
@@ -353,30 +353,17 @@
              </property>
             </widget>
            </item>
-           <item row="8" column="0">
-            <widget class="QLabel" name="unused_11">
-             <property name="text">
-              <string>Layers</string>
-             </property>
-            </widget>
-           </item>
-           <item row="9" column="1" colspan="2">
-            <widget class="QDoubleSpinBox" name="pml_reflectivity_input">
-             <property name="decimals">
-              <number>8</number>
-             </property>
-             <property name="maximum">
-              <double>10000.000000000000000</double>
-             </property>
-             <property name="singleStep">
-              <double>0.001000000000000</double>
-             </property>
-            </widget>
-           </item>
            <item row="10" column="1" colspan="2">
             <widget class="QSpinBox" name="pml_order_input">
              <property name="maximum">
               <number>10000</number>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0">
+            <widget class="QLabel" name="unused_11">
+             <property name="text">
+              <string>Layers</string>
              </property>
             </widget>
            </item>
@@ -393,10 +380,26 @@
              </property>
             </widget>
            </item>
-           <item row="13" column="0">
-            <widget class="QLabel" name="unused_3">
+           <item row="9" column="1" colspan="2">
+            <widget class="QDoubleSpinBox" name="pml_reflectivity_input">
+             <property name="decimals">
+              <number>8</number>
+             </property>
+             <property name="maximum">
+              <double>10000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.001000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="16" column="0">
+            <widget class="VisibilityCheckbox" name="show_objects_input">
              <property name="text">
-              <string>Steps per render</string>
+              <string>Show objects</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -418,12 +421,25 @@
              <property name="text">
               <string>Show sources</string>
              </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
             </widget>
            </item>
-           <item row="16" column="0">
-            <widget class="VisibilityCheckbox" name="show_objects_input">
+           <item row="13" column="0">
+            <widget class="QLabel" name="unused_3">
              <property name="text">
-              <string>Show objects</string>
+              <string>Steps per render</string>
+             </property>
+            </widget>
+           </item>
+           <item row="17" column="0">
+            <widget class="QCheckBox" name="show_sensors_input">
+             <property name="text">
+              <string>Show sensors</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -462,7 +478,7 @@
     <item row="0" column="0" rowspan="2" colspan="15">
      <widget class="QTabWidget" name="simulation_tab">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <property name="tabsClosable">
        <bool>false</bool>
@@ -485,7 +501,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="MPLCanvas" name="figure_canvas" native="true"/>
+         <widget class="SimulationRenderArea" name="simulation_render_area" native="true"/>
         </item>
        </layout>
       </widget>
@@ -493,22 +509,92 @@
        <attribute name="title">
         <string>Sensors</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_4">
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
         <item>
-         <widget class="QLabel" name="unused_18">
-          <property name="font">
-           <font>
-            <pointsize>20</pointsize>
-            <weight>75</weight>
-            <bold>true</bold>
-           </font>
-          </property>
+         <widget class="QPushButton" name="add_sensor_button">
           <property name="text">
-           <string>Not available yet</string>
+           <string>Add sensor</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QScrollArea" name="sensors_area">
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QAbstractScrollArea::AdjustToContents</enum>
+          </property>
+          <property name="widgetResizable">
+           <bool>true</bool>
           </property>
           <property name="alignment">
-           <set>Qt::AlignCenter</set>
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
           </property>
+          <widget class="QWidget" name="sensors_area_content">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>717</width>
+             <height>700</height>
+            </rect>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <spacer name="verticalSpacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
          </widget>
         </item>
        </layout>
@@ -670,12 +756,6 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>MPLCanvas</class>
-   <extends>QWidget</extends>
-   <header>main.widgets.mpl_canvas</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>SimulationControlButton</class>
    <extends>QToolButton</extends>
    <header>main.widgets.simulation_control_button</header>
@@ -689,6 +769,12 @@
    <class>VisibilityCheckbox</class>
    <extends>QCheckBox</extends>
    <header>main.widgets.visibility_checkbox</header>
+  </customwidget>
+  <customwidget>
+   <class>SimulationRenderArea</class>
+   <extends>QWidget</extends>
+   <header>main.widgets.simulation_render_area</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>
