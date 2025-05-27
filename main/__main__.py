@@ -1,6 +1,7 @@
 import math
 import uuid
 
+import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
 from main.simulation.objects.box import Box
@@ -71,11 +72,12 @@ class UI(QtWidgets.QMainWindow):
         self._object_counter = 0
         self._sensor_counter = 0
 
-        self._sensors = list[SensorView]()
+        self._sensors = list[tuple[int, int, np.ndarray, SensorView]]()
 
         self.simulation = Simulation(
             DEFAULT_DT,
             DEFAULT_DX,
+            1500,
             500,
             500,
             1e-8,
@@ -220,6 +222,8 @@ class UI(QtWidgets.QMainWindow):
         widget.show()
         self.sensors_area_layout.update()
 
+        self._sensors.append((250, 250, np.zeros_like(self.simulation.time_array), widget))
+
         self._sensor_counter += 1
 
     @QtCore.pyqtSlot()
@@ -316,6 +320,11 @@ class UI(QtWidgets.QMainWindow):
         self.current_frame_label.setText(str(self.simulation.current_frame))
         self.simulation_time_label.setText(f'{self.simulation.simulation_time_ms:.1f}')
         self.render_time_label.setText(f'{self.simulation_render_area.draw_time_ms:.1f}')
+
+        # update sensors
+        for (x, y, sensor_data, sensor) in self._sensors:
+            sensor_data[self.simulation.current_frame] = self.simulation.get_simulation_data()[y, x]
+            sensor.update_data(self.simulation.time_array, sensor_data)
 
         if self.simulation_job is not None:
             self.simulation_job.notify_frame_processed()

@@ -25,6 +25,7 @@ class Simulation(QtCore.QObject):
     def __init__(self,
                  dt: float,
                  dx: float,
+                 max_time_steps: int,
                  grid_size_x: int,
                  grid_size_y: int,
                  pml_reflectivity: float,
@@ -34,6 +35,7 @@ class Simulation(QtCore.QObject):
 
         self._dt = dt
         self._dx = dx
+        self._max_time_steps = max_time_steps
         self._grid_size_x = grid_size_x
         self._grid_size_y = grid_size_y
         self._pml_reflectivity = pml_reflectivity
@@ -42,6 +44,8 @@ class Simulation(QtCore.QObject):
 
         self._current_frame = 0
         self._simulation_time = 0.0
+
+        self._time_array = self._generate_time_array()
 
         self._ez: np.ndarray
         self._hx: np.ndarray
@@ -89,6 +93,10 @@ class Simulation(QtCore.QObject):
     @property
     def simulation_time_ms(self) -> float:
         return self._simulation_time * 1000.0
+
+    @property
+    def time_array(self) -> np.ndarray:
+        return self._time_array
 
     def emit_params_changed_signal(self) -> None:
         self._emit_pml_params_changed()
@@ -169,7 +177,7 @@ class Simulation(QtCore.QObject):
         self._update_allowance_arrays()
 
     def add_source(self, source: SimulationSource) -> uuid.UUID:
-        source.calculate_data(self._dt, 1000)
+        source.calculate_data(self._time_array)
 
         source_id = uuid.uuid4()
         self._sources[source_id] = source
@@ -208,7 +216,7 @@ class Simulation(QtCore.QObject):
         for source_id in self._sources_to_update:
             source = self._sources.get(source_id, None)
             if source is not None:
-                source.calculate_data(self._dt, 1000)
+                source.calculate_data(self._time_array)
 
         for object_id in self._objects_to_update:
             object = self._objects.get(object_id, None)
@@ -248,7 +256,7 @@ class Simulation(QtCore.QObject):
 
     def _update_simulation_sources(self) -> None:
         for source in self._sources.values():
-            source.calculate_data(self._dt, 1000)
+            source.calculate_data(self._time_array)
 
     def _emit_deltas_changed(self) -> None:
         self.deltas_changed.emit(self._dx, self._dt)
@@ -258,6 +266,9 @@ class Simulation(QtCore.QObject):
 
     def _emit_pml_params_changed(self) -> None:
         self.pml_params_changed.emit(self._pml_reflectivity, self._pml_layers, self._pml_order)
+
+    def _generate_time_array(self) -> np.ndarray:
+        return -np.linspace(-30 * self._dt, 30 * self._dt, self._max_time_steps)
 
     def _generate_pml_profile(self) -> PMLProfile:
         sigma = 4e-4 * np.ones(self.grid_size)

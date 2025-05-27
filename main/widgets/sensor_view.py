@@ -1,4 +1,6 @@
+import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+from matplotlib.lines import Line2D
 from PyQt6 import uic
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QSizePolicy, QWidget
@@ -20,6 +22,25 @@ class SensorView(QWidget):
 
         self.expand_checkbox.checkStateChanged.connect(self._expand_state_changed_cb)
         self.name_label.setText(name)
+
+        self._axes = self.render_area.figure.add_subplot(1, 1, 1)
+        self._axes.invert_xaxis()
+        self._axes.set_xticks([])
+
+        self._plot_line: Line2D | None = None
+
+    def update_data(self, time_data: np.ndarray, sensor_data: np.ndarray) -> None:
+        if self._plot_line is None:
+            lines = self._axes.plot(time_data, sensor_data)
+            assert len(lines) > 0
+
+            self._plot_line = lines[0]
+        else:
+            self._plot_line.set_data(time_data, sensor_data)
+
+        self._axes.relim()
+        self._axes.autoscale_view(True, False, True)
+        self.render_area.draw()
 
     @pyqtSlot()
     def _expand_state_changed_cb(self) -> None:

@@ -434,7 +434,7 @@
             </widget>
            </item>
            <item row="17" column="0">
-            <widget class="QCheckBox" name="show_sensors_input">
+            <widget class="VisibilityCheckbox" name="show_sensors_input">
              <property name="text">
               <string>Show sensors</string>
              </property>
@@ -478,7 +478,7 @@
     <item row="0" column="0" rowspan="2" colspan="15">
      <widget class="QTabWidget" name="simulation_tab">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="tabsClosable">
        <bool>false</bool>

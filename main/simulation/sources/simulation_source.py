@@ -11,12 +11,8 @@ class SimulationSource(abc.ABC):
     frequency: float
     data: np.ndarray = dataclasses.field(init=False)
 
-    @staticmethod
-    def generate_time_array(l: float, dt: float, time_steps: int) -> np.ndarray:
-        return -np.linspace(-l * dt, l * dt, time_steps)
-
     @abc.abstractmethod
-    def calculate_data(self, dt: float, time_steps: int) -> None:
+    def calculate_data(self, time_array: np.ndarray) -> None:
         pass
 
     @property
