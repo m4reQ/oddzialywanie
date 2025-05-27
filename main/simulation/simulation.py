@@ -6,6 +6,8 @@ from PyQt6 import QtCore
 
 from main.simulation.objects.simulation_object import SimulationObject
 from main.simulation.pml_profile import PMLProfile
+from main.simulation.sensor import SimulationSensor
+from main.simulation.simulation_params import SimulationParams
 from main.simulation.sources.simulation_source import SimulationSource
 
 MU_0 = 4.0 * np.pi * 1.0e-7
@@ -18,9 +20,7 @@ DEFAULT_DX = 3e-3
 DEFAULT_DT = S * DEFAULT_DX / C
 
 class Simulation(QtCore.QObject):
-    deltas_changed = QtCore.pyqtSignal(float, float)
-    grid_size_changed = QtCore.pyqtSignal(int, int)
-    pml_params_changed = QtCore.pyqtSignal(float, int, int)
+    params_changed = QtCore.pyqtSignal(object)
 
     def __init__(self,
                  dt: float,
@@ -45,22 +45,29 @@ class Simulation(QtCore.QObject):
         self._current_frame = 0
         self._simulation_time = 0.0
 
-        self._time_array = self._generate_time_array()
-
         self._ez: np.ndarray
         self._hx: np.ndarray
         self._hy: np.ndarray
         self._ae: np.ndarray
         self._am: np.ndarray
-        self._pml_profile = self._generate_pml_profile()
-        self._needs_allowance_arrays_update = True
-        self._sources_to_update = set[uuid.UUID]()
-        self._objects_to_update = set[uuid.UUID]()
+        self._time_array: np.ndarray
+        self._pml_profile: PMLProfile
 
         self._sources = dict[uuid.UUID, SimulationSource]()
         self._objects = dict[uuid.UUID, SimulationObject]()
+        self._sensors = dict[uuid.UUID, SimulationSensor]()
 
         self.reset()
+        self._regenerate_pml_profile()
+        self._regenerate_time_array()
+
+    @property
+    def dx(self) -> float:
+        return self._dx
+
+    @property
+    def dt(self) -> float:
+        return self._dt
 
     @property
     def current_frame(self) -> int:
@@ -87,6 +94,10 @@ class Simulation(QtCore.QObject):
         return self._objects
 
     @property
+    def sensors(self) -> dict[uuid.UUID, SimulationSensor]:
+        return self._sensors
+
+    @property
     def simulation_time(self) -> float:
         return self._simulation_time
 
@@ -98,31 +109,21 @@ class Simulation(QtCore.QObject):
     def time_array(self) -> np.ndarray:
         return self._time_array
 
-    def emit_params_changed_signal(self) -> None:
-        self._emit_pml_params_changed()
-        self._emit_deltas_changed()
-        self._emit_grid_size_changed()
-
     def set_dx(self, dx: float, use_auto_dt: bool = False) -> None:
         self._dx = dx
 
-        if use_auto_dt:
-            self._dt = S * self._dx / C
+        self._regenerate_pml_profile()
+        self._update_allowance_arrays()
+        self._update_objects(erase_old=False)
 
-        self._pml_profile = self._generate_pml_profile()
-        self._needs_allowance_arrays_update = True
-        self._emit_deltas_changed()
+        if use_auto_dt:
+            self._set_dt(_calculate_auto_dt(self._dx), regenerate_pml=False)
+
+        self.emit_params_changed_signal()
 
     def set_dt(self, dt: float) -> None:
-        self._dt = dt
-
-        self._pml_profile = self._generate_pml_profile()
-        self._needs_allowance_arrays_update = True
-        self._emit_deltas_changed()
-        self._update_simulation_sources()
-
-        for obj in self._objects.values():
-            obj.place(self._ae, self._am)
+        self._set_dt(dt, regenerate_pml=True)
+        self.emit_params_changed_signal()
 
     def set_grid_size(self, x: int | None, y: int | None) -> None:
         if x is None:
@@ -135,14 +136,13 @@ class Simulation(QtCore.QObject):
         self._grid_size_y = y
 
         grid_size = self.grid_size
-        self._ez.resize(grid_size)
         self._hx.resize(grid_size)
         self._hy.resize(grid_size)
         self._ae.resize(grid_size)
         self._am.resize(grid_size)
 
         self._needs_allowance_arrays_update = True
-        self._emit_grid_size_changed()
+        self.emit_params_changed_signal()
 
     def set_pml_params(self,
                        reflectivity: float | None = None,
@@ -163,8 +163,8 @@ class Simulation(QtCore.QObject):
             params_changed = True
 
         if params_changed:
-            self._pml_profile = self._generate_pml_profile()
-            self._emit_pml_params_changed()
+            self._regenerate_pml_profile()
+            self.emit_params_changed_signal()
 
     def reset(self) -> None:
         self._current_frame = 0
@@ -175,6 +175,7 @@ class Simulation(QtCore.QObject):
         self._hy = np.zeros(grid_size)
         # we need to immediately update allowance to allow user to see changes after clicking reset
         self._update_allowance_arrays()
+        self._update_objects(erase_old=False)
 
     def add_source(self, source: SimulationSource) -> uuid.UUID:
         source.calculate_data(self._time_array)
@@ -184,11 +185,23 @@ class Simulation(QtCore.QObject):
 
         return source_id
 
+    def add_sensor(self, sensor: SimulationSensor) -> uuid.UUID:
+        sensor.data = np.zeros((self._max_time_steps, ))
+
+        sensor_id = uuid.uuid4()
+        self._sensors[sensor_id] = sensor
+
+        return sensor_id
+
     def update_source(self, source_id: uuid.UUID) -> None:
-        self._sources_to_update.add(source_id)
+        source = self._sources.get(source_id, None)
+        if source is not None:
+            source.calculate_data(self._time_array)
 
     def update_object(self, object_id: uuid.UUID) -> None:
-        self._objects_to_update.add(object_id)
+        obj = self._objects.get(object_id, None)
+        if obj is not None:
+            self._update_object(obj, erase_old=True)
 
     def remove_source(self, source_id: uuid.UUID) -> None:
         self._sources.pop(source_id, None)
@@ -209,24 +222,6 @@ class Simulation(QtCore.QObject):
     def simulate_frame(self) -> None:
         start = time.perf_counter()
 
-        if self._needs_allowance_arrays_update:
-            self._update_allowance_arrays()
-            self._needs_allowance_arrays_update = False
-
-        for source_id in self._sources_to_update:
-            source = self._sources.get(source_id, None)
-            if source is not None:
-                source.calculate_data(self._time_array)
-
-        for object_id in self._objects_to_update:
-            object = self._objects.get(object_id, None)
-            if object is not None:
-                object.erase(self._ae, self._am, self._dt / (self._dx * EPS_0), self._dt / (self._dx * MU_0))
-                object.place(self._ae, self._am)
-
-        self._sources_to_update.clear()
-        self._objects_to_update.clear()
-
         n1 = 1
         n11 = 1
         n2 = self._grid_size_y - 1
@@ -242,8 +237,14 @@ class Simulation(QtCore.QObject):
         self._hx[idx1] = pml_a * self._hx[idx1] - pml_b * self._am[idx1] * (self._ez[n1:n2, n11 + 1:n21 + 1] - self._ez[idx1])
         self._ez[idx2] = self._pml_profile.c[idx2] * self._ez[idx2] + self._pml_profile.d[idx2] * self._ae[idx2] * (self._hy[idx2] - self._hy[n1:n2, n11 + 1:n21 + 1] - self._hx[idx2] + self._hx[n1 + 1:n2 + 1, n11:n21])
 
+        # update sources
         for source in self._sources.values():
             self._ez[source.pos_y_int, source.pos_x_int] = source.data[self._current_frame]
+
+        # update sensors
+        for sensor in self._sensors.values():
+            assert sensor.data is not None
+            sensor.data[self._current_frame] = self._ez[sensor.pos_int]
 
         self._current_frame += 1
         self._simulation_time = time.perf_counter() - start
@@ -254,23 +255,10 @@ class Simulation(QtCore.QObject):
     def get_pml_data(self) -> np.ndarray:
         return self._pml_profile.data
 
-    def _update_simulation_sources(self) -> None:
-        for source in self._sources.values():
-            source.calculate_data(self._time_array)
+    def _regenerate_time_array(self) -> None:
+        self._time_array = -np.linspace(-30 * self._dt, 30 * self._dt, self._max_time_steps)
 
-    def _emit_deltas_changed(self) -> None:
-        self.deltas_changed.emit(self._dx, self._dt)
-
-    def _emit_grid_size_changed(self) -> None:
-        self.grid_size_changed.emit(self._grid_size_x, self._grid_size_y)
-
-    def _emit_pml_params_changed(self) -> None:
-        self.pml_params_changed.emit(self._pml_reflectivity, self._pml_layers, self._pml_order)
-
-    def _generate_time_array(self) -> np.ndarray:
-        return -np.linspace(-30 * self._dt, 30 * self._dt, self._max_time_steps)
-
-    def _generate_pml_profile(self) -> PMLProfile:
+    def _regenerate_pml_profile(self) -> None:
         sigma = 4e-4 * np.ones(self.grid_size)
         sigma_max = -(self._pml_order + 1) * np.log(self._pml_reflectivity) / (2 * ETA * self._pml_layers * self._dx)
         lcp = ((np.arange(1, self._pml_layers + 1) / self._pml_layers) ** self._pml_order) * sigma_max
@@ -281,7 +269,7 @@ class Simulation(QtCore.QObject):
         sigma[:, 1:self._pml_layers + 1] += lcp_rev[None, :]
         sigma[:, -self._pml_layers:] += lcp[None, :]
 
-        return PMLProfile(
+        self._pml_profile = PMLProfile(
             sigma.T,
             np.ones(sigma.shape) * ((MU_0 - 0.5 * self._dt * 4e-4) / (MU_0 + 0.5 * self._dt * 4e-4)),
             np.ones(sigma.shape) * ((self._dt / self._dx) / (MU_0 + 0.5 * self._dt * 4e-4)),
@@ -289,9 +277,46 @@ class Simulation(QtCore.QObject):
             (self._dt / self._dx) / (EPS_0 + 0.5 * self._dt * sigma))
 
     def _update_allowance_arrays(self) -> None:
-        grid_size = self.grid_size
-        self._ae = np.ones(grid_size) * (self._dt / (self._dx * EPS_0))
-        self._am = np.ones(grid_size) * (self._dt / (self._dx * MU_0))
+        self._ae = np.ones(self.grid_size) * (self._dt / (self._dx * EPS_0))
+        self._am = np.ones(self.grid_size) * (self._dt / (self._dx * MU_0))
 
+    def emit_params_changed_signal(self) -> None:
+        self.params_changed.emit(
+            SimulationParams(
+                self._dt,
+                self._dx,
+                self._grid_size_x,
+                self._grid_size_y,
+                self._pml_reflectivity,
+                self._pml_layers,
+                self._pml_order))
+
+    def _update_objects(self, erase_old: bool) -> None:
         for obj in self._objects.values():
-            obj.place(self._ae, self._am)
+            self._update_object(obj, erase_old)
+
+    def _update_object(self, obj: SimulationObject, erase_old: bool) -> None:
+        if erase_old:
+            obj.erase(
+                self._ae,
+                self._am,
+                self._dt / (self._dx * EPS_0),
+                self._dt / (self._dx * MU_0))
+
+        obj.place(self._ae, self._am)
+
+    def _set_dt(self, dt: float, regenerate_pml: bool) -> None:
+        self._dt = dt
+
+        if regenerate_pml:
+            self._regenerate_pml_profile()
+
+        self._regenerate_time_array()
+        self._recalculate_sources_data()
+
+    def _recalculate_sources_data(self) -> None:
+        for source in self._sources.values():
+            source.calculate_data(self._time_array)
+
+def _calculate_auto_dt(dx: float) -> float:
+    return S * dx / C

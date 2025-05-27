@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>262</width>
+    <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -62,7 +62,7 @@
     </widget>
    </item>
    <item row="6" column="1">
-    <widget class="QDoubleSpinBox" name="source_frequency_input">
+    <widget class="FloatTooltipSpinbox" name="source_frequency_input">
      <property name="maximum">
       <double>100000.000000000000000</double>
      </property>
@@ -84,6 +84,12 @@
    </item>
    <item row="3" column="0">
     <widget class="QLabel" name="_unused">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>X</string>
      </property>
@@ -104,6 +110,12 @@
    </item>
    <item row="4" column="0">
     <widget class="QLabel" name="_unused_7">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Y</string>
      </property>
@@ -111,6 +123,12 @@
    </item>
    <item row="3" column="1">
     <widget class="QDoubleSpinBox" name="source_x_input">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="maximum">
       <double>10000.000000000000000</double>
      </property>
@@ -118,6 +136,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>FloatTooltipSpinbox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>main.widgets.float_tooltip_spinbox</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

@@ -2,6 +2,7 @@ from PyQt6 import QtCore, QtWidgets, uic
 
 from main.simulation.objects.box import Box
 from main.simulation.objects.simulation_object import SimulationObject
+from main.widgets.float_tooltip_spinbox import FloatTooltipSpinbox
 
 OBJECT_INSPECTOR_UI_FILEPATH = './ui/object_inspector.ui'
 
@@ -16,8 +17,8 @@ class ObjectInspector(QtWidgets.QWidget):
         self.width_input: QtWidgets.QDoubleSpinBox
         self.height_input: QtWidgets.QDoubleSpinBox
         self.object_name_label: QtWidgets.QLabel
-        self.permeability_input: QtWidgets.QDoubleSpinBox
-        self.permittivity_input: QtWidgets.QDoubleSpinBox
+        self.permeability_input: FloatTooltipSpinbox
+        self.permittivity_input: FloatTooltipSpinbox
         self.x_input: QtWidgets.QDoubleSpinBox
         self.y_input: QtWidgets.QDoubleSpinBox
 

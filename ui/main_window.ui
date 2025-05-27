@@ -123,6 +123,28 @@
            </item>
           </layout>
          </widget>
+         <widget class="QWidget" name="sensors_tab">
+          <attribute name="title">
+           <string>Sensors</string>
+          </attribute>
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QListWidget" name="sensors_list"/>
+           </item>
+          </layout>
+         </widget>
         </widget>
        </item>
        <item row="3" column="0" colspan="2">
@@ -187,10 +209,13 @@
            <item row="1" column="0">
             <widget class="QLabel" name="unused_2">
              <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                <horstretch>0</horstretch>
                <verstretch>0</verstretch>
               </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Time step</string>
              </property>
              <property name="text">
               <string>dt</string>
@@ -198,7 +223,7 @@
             </widget>
            </item>
            <item row="0" column="1" colspan="2">
-            <widget class="QDoubleSpinBox" name="dx_input">
+            <widget class="FloatTooltipSpinbox" name="dx_input">
              <property name="decimals">
               <number>8</number>
              </property>
@@ -211,7 +236,7 @@
             </widget>
            </item>
            <item row="1" column="1">
-            <widget class="QDoubleSpinBox" name="dt_input">
+            <widget class="FloatTooltipSpinbox" name="dt_input">
              <property name="decimals">
               <number>8</number>
              </property>
@@ -229,10 +254,13 @@
            <item row="0" column="0">
             <widget class="QLabel" name="unused">
              <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                <horstretch>0</horstretch>
                <verstretch>0</verstretch>
               </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Spatial step</string>
              </property>
              <property name="text">
               <string>dx</string>
@@ -268,6 +296,9 @@
            </item>
            <item row="5" column="0">
             <widget class="QLabel" name="unused_8">
+             <property name="toolTip">
+              <string>Simulation space Y-axis size</string>
+             </property>
              <property name="text">
               <string>Y</string>
              </property>
@@ -282,6 +313,9 @@
            </item>
            <item row="4" column="0">
             <widget class="QLabel" name="unused_5">
+             <property name="toolTip">
+              <string>Simulation space X-axis size</string>
+             </property>
              <property name="text">
               <string>X</string>
              </property>
@@ -362,6 +396,9 @@
            </item>
            <item row="8" column="0">
             <widget class="QLabel" name="unused_11">
+             <property name="toolTip">
+              <string/>
+             </property>
              <property name="text">
               <string>Layers</string>
              </property>
@@ -381,7 +418,7 @@
             </widget>
            </item>
            <item row="9" column="1" colspan="2">
-            <widget class="QDoubleSpinBox" name="pml_reflectivity_input">
+            <widget class="FloatTooltipSpinbox" name="pml_reflectivity_input">
              <property name="decimals">
               <number>8</number>
              </property>
@@ -428,6 +465,9 @@
            </item>
            <item row="13" column="0">
             <widget class="QLabel" name="unused_3">
+             <property name="toolTip">
+              <string>How many steps should simulation run before rendering result</string>
+             </property>
              <property name="text">
               <string>Steps per render</string>
              </property>
@@ -775,6 +815,11 @@
    <extends>QWidget</extends>
    <header>main.widgets.simulation_render_area</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>FloatTooltipSpinbox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>main.widgets.float_tooltip_spinbox</header>
   </customwidget>
  </customwidgets>
  <resources/>

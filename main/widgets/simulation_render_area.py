@@ -2,7 +2,7 @@ import time
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.image import AxesImage
-from matplotlib.patches import Circle
+from matplotlib.patches import Circle, Rectangle
 from PyQt6.QtWidgets import QWidget
 
 from main.simulation.simulation import Simulation
@@ -20,6 +20,7 @@ class SimulationRenderArea(FigureCanvasQTAgg):
         self.cmap = 'jet'
         self.source_radius = 2.0
         self.source_color = 'red'
+        self.sensor_color = 'blue'
 
         self._axes = self.figure.add_subplot(1, 1, 1)
         self._axes_image: AxesImage | None = None
@@ -57,6 +58,15 @@ class SimulationRenderArea(FigureCanvasQTAgg):
                             source.pos,
                             self.source_radius,
                             color=self.source_color))
+
+            if self.show_sensors:
+                for sensor in self.simulation.sensors.values():
+                    self._axes.add_patch(
+                        Rectangle(
+                            sensor.pos,
+                            4,
+                            4,
+                            color=self.sensor_color))
 
             if self.show_objects:
                 for obj in self.simulation.objects.values():
