@@ -27,6 +27,12 @@ class SourceInspector(QtWidgets.QWidget):
         self.source_y_input: QtWidgets.QDoubleSpinBox
         self.source_y_input.valueChanged.connect(self._source_y_input_changed_cb)
 
+        self.phase_shift_input: FloatTooltipSpinbox
+        self.phase_shift_input.valueChanged.connect(self._source_phase_shift_changed_cb)
+
+        self.amplitude_input: FloatTooltipSpinbox
+        self.amplitude_input.valueChanged.connect(self._source_amplitude_changed_cb)
+
     def set_source(self, source: SimulationSource | None) -> None:
         self._source = source
 
@@ -37,25 +43,39 @@ class SourceInspector(QtWidgets.QWidget):
         self.source_frequency_input.setValue(source.frequency)
         self.source_x_input.setValue(source.pos_x)
         self.source_y_input.setValue(source.pos_y)
+        self.phase_shift_input.setValue(source.phase_shift)
+        self.amplitude_input.setValue(source.amplitude)
 
     def set_max_source_pos(self, x: float | None, y: float | None) -> None:
         self.source_x_input.setMaximum(x if (x is not None) else self.source_x_input.value())
         self.source_y_input.setMaximum(y if (y is not None) else self.source_y_input.value())
 
-    @QtCore.pyqtSlot()
-    def _source_frequency_input_changed_cb(self) -> None:
+    @QtCore.pyqtSlot(float)
+    def _source_amplitude_changed_cb(self, new_value: float) -> None:
         if self._source is not None:
-            self._source.frequency = self.source_frequency_input.value()
+            self._source.amplitude = new_value
             self.source_params_changed.emit()
 
-    @QtCore.pyqtSlot()
-    def _source_x_input_changed_cb(self) -> None:
+    @QtCore.pyqtSlot(float)
+    def _source_phase_shift_changed_cb(self, new_value: float) -> None:
         if self._source is not None:
-            self._source.pos_x = self.source_x_input.value()
+            self._source.phase_shift = new_value
             self.source_params_changed.emit()
 
-    @QtCore.pyqtSlot()
-    def _source_y_input_changed_cb(self) -> None:
+    @QtCore.pyqtSlot(float)
+    def _source_frequency_input_changed_cb(self, new_value: float) -> None:
         if self._source is not None:
-            self._source.pos_y = self.source_y_input.value()
+            self._source.frequency = new_value
+            self.source_params_changed.emit()
+
+    @QtCore.pyqtSlot(float)
+    def _source_x_input_changed_cb(self, new_value: float) -> None:
+        if self._source is not None:
+            self._source.pos_x = new_value
+            self.source_params_changed.emit()
+
+    @QtCore.pyqtSlot(float)
+    def _source_y_input_changed_cb(self, new_value: float) -> None:
+        if self._source is not None:
+            self._source.pos_y = new_value
             self.source_params_changed.emit()

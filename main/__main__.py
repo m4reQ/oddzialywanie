@@ -174,9 +174,9 @@ class UI(QtWidgets.QMainWindow):
 
     def _create_simulation_source(self, source_type: str, pos_x: int, pos_y: int) -> SimulationSource:
         if source_type == 'sine':
-            return SineSource(pos_x, pos_y, 60e9)
+            return SineSource(pos_x, pos_y, 60e9, 0.0, 1.0)
         elif source_type == 'cosine':
-            return CosineSource(pos_x, pos_y, 60e9)
+            return CosineSource(pos_x, pos_y, 60e9, 0.0, 1.0)
 
         raise ValueError(f'Invalid simulation source type: {source_type}')
 
@@ -473,6 +473,11 @@ class UI(QtWidgets.QMainWindow):
 
                 self._simulation.remove_source(item_id)
                 self.sources_list.takeItem(self.sources_list.row(current_item))
+
+                current_item = self.sources_list.currentItem()
+                if current_item is not None:
+                    new_source = self._simulation.sources[current_item.data(DATA_ROLE)] # type: ignore
+                    self.source_inspector.set_source(new_source)
         elif current_tab == OBJECTS_LIST_TAB_INDEX:
             current_item = self.objects_list.currentItem()
             if current_item is not None:
@@ -481,6 +486,11 @@ class UI(QtWidgets.QMainWindow):
 
                 self._simulation.remove_object(item_id)
                 self.objects_list.takeItem(self.objects_list.row(current_item))
+
+                current_item = self.objects_list.currentItem()
+                if current_item is not None:
+                    new_object = self._simulation.objects[current_item.data(DATA_ROLE)] # type: ignore
+                    self.object_inspector.set_object(new_object)
 
         self.simulation_render_area.draw()
 

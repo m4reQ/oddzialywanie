@@ -9,6 +9,8 @@ class SimulationSource(abc.ABC):
     pos_x: float
     pos_y: float
     frequency: float
+    phase_shift: float
+    amplitude: float
     data: np.ndarray = dataclasses.field(init=False)
 
     @abc.abstractmethod
